@@ -23,3 +23,19 @@ end
 X = 5
 
 {Show {Square X}}
+
+
+declare Y Z W Q
+proc {Square X R1 R2 R3}
+    R1 = X * X
+    R2 = X + X
+    R3 = X - X
+end
+{Square 5 Y Z W}
+{Show Y Z W}
+
+for I in 1..10 do
+    if I then
+    {Show I}
+end
+
