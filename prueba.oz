@@ -39,3 +39,7 @@ for I in 1..10 do
     {Show I}
 end
 
+declare X
+X = {NewCell 4}
+X := 7
+{Show @X}

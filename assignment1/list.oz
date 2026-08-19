@@ -5,7 +5,7 @@
 %% - the second element is the sum of elements at odd positions.
 declare
 fun {OddSumEvenProduct L}
-    Loop Xs Pos Prod Sum
+    Loop
 in
     fun {Loop Xs Pos Prod Sum}
         if Xs == nil then Prod # Sum
@@ -18,4 +18,4 @@ in
     {Loop L 1 1 0}
 end
 
-{Show {OddSumEvenProduct [10 43 50 60]}}
+%%{Show {OddSumEvenProduct [10 43 50 60]}}
