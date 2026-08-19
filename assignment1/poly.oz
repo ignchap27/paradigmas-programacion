@@ -43,5 +43,5 @@ end
 List1 = [2 3]
 List2 = [1 2 3 4 5]
 
-{Show {AddPolynomials List1 List2}}
+%{Show {AddPolynomials List1 List2}}
 %testfailed(1:'Second longer' actual:[1 2 3 6 8] expected:[1 2 5 7 5])

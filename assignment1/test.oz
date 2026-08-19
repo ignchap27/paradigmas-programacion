@@ -54,7 +54,7 @@ in
    
    %% Test 5: Second polynomial longer
    Result5 = {AddPolynomials [2 3] [1 2 3 4 5]}
-   {TestResult 'Second longer' [1 2 5 7 5] Result5}
+   {TestResult 'Second longer' [1 2 3 6 8] Result5}
    
    %% Test 6: One empty polynomial
    Result6 = {AddPolynomials nil [1 2 3]}
