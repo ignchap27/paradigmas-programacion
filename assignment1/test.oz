@@ -6,9 +6,9 @@
 
 proc {TestResult TestName Expected Actual}
    if Expected == Actual then
-      {Browse testpassed(TestName)}
+      {Show testpassed(TestName)}
    else
-      {Browse testfailed(TestName expected:Expected actual:Actual)}
+      {Show testfailed(TestName expected:Expected actual:Actual)}
    end
 end
 
@@ -16,7 +16,7 @@ end
 proc {TestTask1}
    Result1 Result2 Result3 Result4 Result5
 in
-   {Browse '=== Testing Task 1: OddSumEvenProduct ==='}
+   {Show '=== Testing Task 1: OddSumEvenProduct ==='}
 
    Result1 = {OddSumEvenProduct [1 2 3 4 5]}
    {TestResult 'Basic case' 8#9 Result1}
@@ -39,7 +39,7 @@ end
 proc {TestTask2}
    Result1 Result2 Result4 Result5 Result6
 in
-   {Browse '=== Testing Task 2: AddPolynomials ==='}
+   {Show '=== Testing Task 2: AddPolynomials ==='}
 
    Result1 = {AddPolynomials [1 ~2] [4 3 2 1]}
    {TestResult 'Example 1' [4 3 3 ~1] Result1}
@@ -66,7 +66,7 @@ proc {TestTask3}
    Tree1 Tree2 Tree4 TreeChar
    Result1 Result2 Result3 Result4 Result5 Result6 Result7 Result8 Result9
 in
-   {Browse '=== Testing Task 3: Binary Tree Construction ==='}
+   {Show '=== Testing Task 3: Binary Tree Construction ==='}
 
    Tree1 = tree(1 tree(2 nil nil) tree(3 nil nil))
    Result1 = {InorderPreorder2BT [2 1 3] [1 2 3]}
@@ -105,7 +105,7 @@ proc {TestTask4}
    Linear Quadratic Constant Cubic
    Result1 Result2 Result3 Result5 Result6
 in
-   {Browse '=== Testing Task 4: Simpson\'s Rule Integration ==='}
+   {Show '=== Testing Task 4: Simpson\'s Rule Integration ==='}
 
    fun {Linear X} X end                   
    fun {Quadratic X} X*X end              
@@ -113,19 +113,19 @@ in
    fun {Cubic X} X*X*X end                
    
    Result1 = {Integral Constant 0.0 1.0 2}
-   {Browse test1_constant(expected:1.0 actual:Result1)}
+   {Show test1_constant(expected:1.0 actual:Result1)}
    
    Result2 = {Integral Linear 0.0 2.0 4}
-   {Browse test2_linear(expected:2.0 actual:Result2)}
+   {Show test2_linear(expected:2.0 actual:Result2)}
    
    Result3 = {Integral Quadratic 0.0 1.0 6}
-   {Browse test3_quadratic(expected:0.333333 actual:Result3)}
+   {Show test3_quadratic(expected:0.333333 actual:Result3)}
    
    Result5 = {Integral Quadratic 0.0 1.0 100}
-   {Browse test5_precision(expected:0.333333 actual:Result5)}
+   {Show test5_precision(expected:0.333333 actual:Result5)}
    
    Result6 = {Integral Cubic ~1.0 1.0 8}
-   {Browse test6_odd_function(expected:0.0 actual:Result6)}
+   {Show test6_odd_function(expected:0.0 actual:Result6)}
 end
 
 %% TASK 5 TESTS: Record Relations

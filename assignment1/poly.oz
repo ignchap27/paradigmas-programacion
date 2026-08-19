@@ -30,7 +30,7 @@ in
         end
     end
 
-    CompleteTuple = {Completion P1 P2 Diff}
+    CompleteTuple = {Completion MinMaxTuple.1 MinMaxTuple.2 Diff}
     {Sum CompleteTuple.1 CompleteTuple.2 nil}
 end
 
@@ -40,7 +40,8 @@ fun {MinMaxList L1 L2}
     end
 end
 
-List1 = [5 6 4 3 ~2 4]
-List2 = [2 ~1]
+List1 = [2 3]
+List2 = [1 2 3 4 5]
 
-%%{Show {AddPolynomials List1 List2}}
+{Show {AddPolynomials List1 List2}}
+%testfailed(1:'Second longer' actual:[1 2 3 6 8] expected:[1 2 5 7 5])
