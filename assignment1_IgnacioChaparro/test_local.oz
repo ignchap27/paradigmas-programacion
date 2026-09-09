@@ -1,8 +1,8 @@
-\insert 'assignment1/list.oz'
-\insert 'assignment1/poly.oz' 
-\insert 'assignment1/tree.oz'
-\insert 'assignment1/integral.oz'
-\insert 'assignment1/recordR.oz'
+\insert 'assignment1_IgnacioChaparro/list.oz'
+\insert 'assignment1_IgnacioChaparro/poly.oz' 
+\insert 'assignment1_IgnacioChaparro/tree.oz'
+\insert 'assignment1_IgnacioChaparro/integral.oz'
+\insert 'assignment1_IgnacioChaparro/recordR.oz'
 
 proc {TestResult TestName Expected Actual}
    if Expected == Actual then
