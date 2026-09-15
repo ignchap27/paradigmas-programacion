@@ -337,6 +337,76 @@ in
 end
 
 
+declare
+
+fun {AllImplementations Objs F}
+   case Objs
+   of nil then nil
+   [] Obj|Objr then
+      if {HasFeature Obj F} then Obj.F|{AllImplementations Objr F}
+      else {AllImplementations Objr F}
+      end
+   end
+end
+
+fun {ExplicitCompositionPoly Objs}
+   Unique = {RemoveDuplicates Objs}
+   Fields = {Map {AllMethodFeatures Unique}
+             fun {$ F} F#{AllImplementations Unique F} end}
+in
+   {AdjoinList object(attributes: {ComposeAttributes Unique}) Fields}
+end
+
+
+declare
+NextThunk = {NewCell fun {$} unit end}
+
+fun {CallWithResult P Args}
+   Arity = {Procedure.arity P}
+   NArgs = {Length Args}
+in
+   if Arity == NArgs then
+      case Args
+      of nil          then {P}         unit
+      [] [A]          then {P A}       unit
+      [] [A B]        then {P A B}     unit
+      [] [A B C]      then {P A B C}   unit
+      [] [A B C D]    then {P A B C D} unit
+      else raise metaError(dispatchTooManyArgs NArgs) end
+      end
+   elseif Arity == NArgs+1 then
+      case Args
+      of nil          then {P $}
+      [] [A]          then {P A $}
+      [] [A B]        then {P A B $}
+      [] [A B C]      then {P A B C $}
+      [] [A B C D]    then {P A B C D $}
+      else raise metaError(dispatchTooManyArgs NArgs) end
+      end
+   else
+      raise metaError(dispatchArityMismatch Arity NArgs) end
+   end
+end
+
+fun {Dispatch Obj Selector Args Index}
+   Impls = Obj.Selector
+in
+   if Index > {Length Impls} then unit
+   else
+      Curr = {List.nth Impls Index}
+      OldNext
+      R
+   in
+      {Exchange NextThunk OldNext fun {$} {Dispatch Obj Selector Args Index+1} end}
+      R = {CallWithResult Curr Args}
+      {Exchange NextThunk _ OldNext}
+      R
+   end
+end
+
+fun {NextFunction} {@NextThunk} end
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% PRUEBAS / EJEMPLOS
 %% Ejecutar este bloque muestra el comportamiento de las tareas 1, 2 y 3.
@@ -401,3 +471,39 @@ proc {Titulo T} {System.showInfo ""} {System.showInfo "== "#T#" =="} end
 %% Un objeto compuesto es un objeto normal, se puede volver a componer.
 %% Aqui usamos el alias Compose, que es el nombre del Snippet 1 del enunciado.
 {System.showInfo "personName    -> "#{{Compose [CI A]}.personName}}
+
+declare
+fun {NewLoud Msg}
+   proc {Announce}
+      {System.showInfo "LOUD: "#Msg}
+      {NextFunction _}
+   end
+in
+   object(attributes: attributes announce: Announce)
+end
+
+fun {NewQuiet Msg}
+   proc {Announce}
+      {System.showInfo "quiet: "#Msg}
+   end
+in
+   object(attributes: attributes announce: Announce)
+end
+
+CP = {ExplicitCompositionPoly [E P]}
+L  = {NewLoud "hola"}
+Q  = {NewQuiet "hola"}
+CN = {ExplicitCompositionPoly [L Q]}
+
+{Titulo "Tarea 4: composicion explicita polimorfica"}
+{System.showInfo "Implementaciones de display en CP:"}
+{System.show {Length CP.display}}    % 2: Employer y Person definen display
+
+{Titulo "Tarea 5: Dispatch"}
+{Dispatch CP display nil 1 _}         % ejecuta el display de Employer
+{Dispatch CP display nil 2 _}         % ejecuta el display de Person
+{Dispatch CP display nil 3 _}         % indice fuera de rango: no hace nada
+
+{Titulo "Tarea 6: NextFunction"}
+{Dispatch CN announce nil 1 _}        % Loud imprime su mensaje y llama a NextFunction,
+                                       % que dispara Quiet (indice 2)
