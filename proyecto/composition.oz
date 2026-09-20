@@ -463,9 +463,14 @@ in
 end
 
 %% {Dispatch Obj Selector Args} ejecuta la primera implementacion del metodo.
-fun {Dispatch Obj Selector Args}
+%% Se define con el nombre DispatchT5 y se expone como Dispatch: la Tarea 6
+%% vuelve a ligar el nombre Dispatch, y asi la version de esta tarea sigue
+%% disponible (y probable) hasta el final del archivo.
+fun {DispatchT5 Obj Selector Args}
    {CallWithResult {List.nth Obj.Selector 1} Args}
 end
+
+declare Dispatch = DispatchT5
 
 %% Demostracion de la Tarea 5. Se construyen objetos propios porque los del
 %% bloque final de PRUEBAS se declaran mas abajo, y para entonces Dispatch ya
@@ -634,6 +639,16 @@ CN = {ExplicitCompositionPoly [L Q]}
 {System.show {{List.nth CP.name 1}} == {E.name}}   % true
 %% Idempotencia: componer el mismo objeto dos veces no replica implementaciones.
 {System.show {Length {ExplicitCompositionPoly [E E]}.display}}   % 1
+
+{Titulo "Tarea 5: Dispatch sin indice"}
+%% La firma de la Tarea 5 es (receptor, selector, parametros) y siempre ejecuta
+%% la primera implementacion, igual que ExplicitComposition.
+{DispatchT5 CP display nil _}                       % el display de Employer
+{System.showInfo "name -> "#{DispatchT5 CP name nil}}
+{System.show {DispatchT5 CP name nil} == {E.name}}  % true
+%% Metodo con parametros: deposit es un proc, el despacho devuelve unit.
+{System.show {DispatchT5 {ExplicitCompositionPoly [A P]} deposit [10]}}
+{System.showInfo "balance tras el deposito -> "#{A.balance}}
 
 {Titulo "Tarea 6: Dispatch con indice"}
 {Dispatch CP display nil 1 _}         % ejecuta el display de Employer
