@@ -2,7 +2,7 @@
 %% ISIS-4217 Paradigmas de programacion
 %% Proyecto: Orientacion a objetos - objetos componibles con "metafunciones"
 %% Archivo: composition.oz
-%% Tareas implementadas en este archivo: 1, 2 y 3
+%% Tareas implementadas en este archivo: 1, 2, 3, 4, 5 y 6
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
 %% IDEA GENERAL
@@ -337,8 +337,44 @@ in
 end
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% TAREA 4. COMPOSICION EXPLICITA POLIMORFICA
+%%
+%% {ExplicitCompositionPoly Objs} compone como la Tarea 2, pero cuando hay un
+%% CHOQUE de metodos (el mismo nombre definido en varios objetos) ya no gana el
+%% primero y se descartan los demas: se CONSERVAN TODAS las implementaciones,
+%% en una lista ordenada segun el orden en que aparecen los objetos en Objs.
+%%
+%% La forma del objeto compuesto es:
+%%
+%%   object(attributes: attributes(...)
+%%          name:       [NameEmployer]
+%%          display:    [DisplayEmployer DisplayPerson])
+%%
+%% Todos los metodos quedan como lista, incluso los que NO chocan (lista de un
+%% solo elemento). Se hizo asi a proposito: la forma del objeto es uniforme, no
+%% hay que preguntar si hubo choque para saber como usar un campo, y es
+%% justamente lo que espera el despachador de la Tarea 5, que indexa la lista de
+%% implementaciones. El precio es que un metodo ya no se invoca directamente
+%% ({CP.name} es una lista, no un procedimiento): se invoca la implementacion
+%% que se quiera, {{List.nth CP.name 1}}, o se deja que Dispatch lo haga.
+%%
+%% Diferencias con la Tarea 2:
+%%   - Explicita (Tarea 2) : choque -> gana el primero, el resto se pierde.
+%%   - Polimorfica (Tarea 4): choque -> quedan todas, ordenadas.
+%%
+%% Lo demas no cambia: los atributos se mezclan con la regla de siempre
+%% ({ComposeAttributes}: ante un choque queda la celda del primer objeto, o sea
+%% que el estado se sigue compartiendo y no se duplica), y la composicion sigue
+%% siendo idempotente porque {RemoveDuplicates} deja un solo ejemplar de cada
+%% objeto: {ExplicitCompositionPoly [E E]} da listas de largo 1.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 declare
 
+%% {AllImplementations Objs F} es la variante polimorfica de {ResolveMethod}:
+%% en vez de cortar en el primer objeto que define F, recorre la lista completa
+%% y devuelve TODAS las implementaciones de F, en orden de aparicion.
 fun {AllImplementations Objs F}
    case Objs
    of nil then nil
@@ -349,8 +385,11 @@ fun {AllImplementations Objs F}
    end
 end
 
+%% {ExplicitCompositionPoly Objs} arma un campo por cada nombre de metodo que
+%% exista en algun constituyente ({AllMethodFeatures} ya devuelve esa union sin
+%% repetidos y en orden), y el valor del campo es la lista de implementaciones.
 fun {ExplicitCompositionPoly Objs}
-   Unique = {RemoveDuplicates Objs}
+   Unique = {RemoveDuplicates Objs}          % idempotencia
    Fields = {Map {AllMethodFeatures Unique}
              fun {$ F} F#{AllImplementations Unique F} end}
 in
@@ -358,9 +397,44 @@ in
 end
 
 
-declare
-NextThunk = {NewCell fun {$} unit end}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% TAREA 5. FUNCION DE DESPACHO (Dispatch)
+%%
+%% Despues de la Tarea 4 los metodos del objeto compuesto ya NO son
+%% procedimientos: son LISTAS de implementaciones. Por eso {CP.display} no se
+%% puede aplicar, seria aplicar una lista. Hace falta una metafuncion que
+%% seleccione una implementacion de la lista y la invoque:
+%%
+%%      {Dispatch CP display nil}      en vez de   {CP.display}
+%%      {Dispatch CP deposit [10]}     en vez de   {CP.deposit 10}
+%%
+%% Firma: receptor, selector (nombre del metodo), parametros.
+%% Los parametros van en una LISTA por la misma razon que las composiciones
+%% reciben una lista de objetos: en Oz la aridad es fija, no hay varargs.
+%%
+%% Semantica pedida por el enunciado: "debe funcionar exactamente como
+%% funcionaban las funciones en ExplicitComposition", es decir, ante un choque
+%% gana el PRIMERO. Como {AllImplementations} construyo la lista en orden de
+%% aparicion, eso es simplemente tomar el elemento 1.
+%%
+%% El unico punto delicado es aplicar la implementacion, porque en Oz una 'fun'
+%% es azucar de un 'proc' con un argumento de salida extra. Un metodo como
+%% Balance (fun sin parametros) y un metodo como Deposit (proc con un
+%% parametro) tienen los dos aridad 1, y solo se distinguen comparando esa
+%% aridad con la cantidad de argumentos que recibimos. De eso se encarga
+%% CallWithResult, que ademas devuelve 'unit' cuando la implementacion era un
+%% procedimiento (no produce resultado).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+declare
+
+%% {CallWithResult P Args} aplica P a los argumentos de la lista Args.
+%%   - Si {Procedure.arity P} == {Length Args}, P es un procedimiento: se
+%%     ejecuta y se devuelve unit.
+%%   - Si {Procedure.arity P} == {Length Args}+1, P es una funcion: el argumento
+%%     sobrante es el de salida y se devuelve lo que P produce.
+%% Igual que en MakeForwarder, los casos de aridad se enumeran porque no se
+%% pueden construir aplicaciones de aridad arbitraria en tiempo de ejecucion.
 fun {CallWithResult P Args}
    Arity = {Procedure.arity P}
    NArgs = {Length Args}
@@ -387,6 +461,58 @@ in
       raise metaError(dispatchArityMismatch Arity NArgs) end
    end
 end
+
+%% {Dispatch Obj Selector Args} ejecuta la primera implementacion del metodo.
+fun {Dispatch Obj Selector Args}
+   {CallWithResult {List.nth Obj.Selector 1} Args}
+end
+
+%% Demostracion de la Tarea 5. Se construyen objetos propios porque los del
+%% bloque final de PRUEBAS se declaran mas abajo, y para entonces Dispatch ya
+%% habra sido redefinido por la Tarea 6.
+local E5 A5 D5 in
+   E5 = {NewEmployer "Uniandes" "Cra 1 # 18A-12"}
+   A5 = {NewAccount 100}
+   D5 = {ExplicitCompositionPoly [E5 {NewPerson "Ana" E5} A5]}
+
+   {System.showInfo ""}
+   {System.showInfo "== Tarea 5: Dispatch =="}
+   %% Metodo con parametro (proc): no devuelve nada, modifica la celda.
+   {System.show {Dispatch D5 deposit [50]}}         % unit
+   %% Metodo sin parametros que devuelve valor (fun).
+   {System.showInfo "balance -> "#{Dispatch D5 balance nil}}   % 150
+   {System.show {Dispatch D5 balance nil} == {A5.balance}}     % true
+   %% Metodo con choque: display esta en Employer y en Person, gana Employer.
+   {Dispatch D5 display nil _}
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% TAREA 6. DESPACHO CON INDICE Y NextFunction
+%%
+%% Ahora si le sacamos provecho a guardar todas las implementaciones. Dispatch
+%% se REDEFINE con un cuarto argumento, el indice de la implementacion a llamar
+%% (el 'declare' vuelve a ligar el nombre, asi que de aqui en adelante Dispatch
+%% es esta version de 4 argumentos):
+%%
+%%      {Dispatch A deposit [10] 1}   llama la primera implementacion
+%%      {Dispatch A deposit [10] 2}   llama la segunda
+%%
+%% Con indice 1 el comportamiento es identico al de la Tarea 5. Un indice mayor
+%% al numero de implementaciones no hace nada, como pide el enunciado.
+%%
+%% {NextFunction} se llama DESDE DENTRO de un metodo y continua con la siguiente
+%% implementacion. Para que el metodo sepa cual es "la siguiente" sin recibir el
+%% indice como parametro, Dispatch deja la continuacion en la celda NextThunk
+%% antes de invocar la implementacion actual, y restaura el valor anterior al
+%% terminar. Ese guardar/restaurar es lo que permite que los despachos anidados
+%% (un metodo que despacha otro metodo) no se pisen entre si.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+declare
+
+%% Continuacion vigente: el thunk que ejecutara {NextFunction}.
+NextThunk = {NewCell fun {$} unit end}
 
 fun {Dispatch Obj Selector Args Index}
    Impls = Obj.Selector
@@ -496,14 +622,24 @@ Q  = {NewQuiet "hola"}
 CN = {ExplicitCompositionPoly [L Q]}
 
 {Titulo "Tarea 4: composicion explicita polimorfica"}
+%% display choca: Employer y Person lo definen, y quedan las dos versiones.
 {System.showInfo "Implementaciones de display en CP:"}
-{System.show {Length CP.display}}    % 2: Employer y Person definen display
+{System.show {Length CP.display}}                  % 2
+%% name no choca, pero igual queda como lista (forma uniforme).
+{System.show {Length CP.name}}                     % 1
+%% Se puede invocar cualquiera de las implementaciones conservadas.
+{{List.nth CP.display 1}}                          % el display de Employer
+{{List.nth CP.display 2}}                          % el display de Person
+%% El estado se sigue compartiendo con los constituyentes.
+{System.show {{List.nth CP.name 1}} == {E.name}}   % true
+%% Idempotencia: componer el mismo objeto dos veces no replica implementaciones.
+{System.show {Length {ExplicitCompositionPoly [E E]}.display}}   % 1
 
-{Titulo "Tarea 5: Dispatch"}
+{Titulo "Tarea 6: Dispatch con indice"}
 {Dispatch CP display nil 1 _}         % ejecuta el display de Employer
 {Dispatch CP display nil 2 _}         % ejecuta el display de Person
 {Dispatch CP display nil 3 _}         % indice fuera de rango: no hace nada
 
 {Titulo "Tarea 6: NextFunction"}
 {Dispatch CN announce nil 1 _}        % Loud imprime su mensaje y llama a NextFunction,
-                                       % que dispara Quiet (indice 2)
+                                      % que dispara Quiet (indice 2)
