@@ -45,9 +45,9 @@
 %%
 %% COMO EJECUTAR
 %% -------------
-%% Alimentar el archivo completo en el OPI de Mozart (Oz > Feed Buffer). El
-%% bloque final de PRUEBAS imprime en la consola los resultados de las tres
-%% tareas; todas las comparaciones deben mostrar 'true'.
+%% Alimentar tests.oz en el OPI de Mozart (Oz > Feed Buffer). Ese
+%% archivo incluye a este con \insert y corre las demos y los casos
+%% de prueba de las seis tareas. Este archivo solo define las funciones.
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -401,260 +401,110 @@ end
 %% TAREA 5. FUNCION DE DESPACHO (Dispatch)
 %%
 %% Despues de la Tarea 4 los metodos del objeto compuesto ya NO son
-%% procedimientos: son LISTAS de implementaciones. Por eso {CP.display} no se
-%% puede aplicar, seria aplicar una lista. Hace falta una metafuncion que
-%% seleccione una implementacion de la lista y la invoque:
+%% procedimientos: son LISTAS de implementaciones. Por eso {CP.deposit 10} no se
+%% puede aplicar (seria aplicar una lista). Hace falta una metafuncion que
+%% escoja una implementacion de la lista y la invoque:
 %%
-%%      {Dispatch CP display nil}      en vez de   {CP.display}
-%%      {Dispatch CP deposit [10]}     en vez de   {CP.deposit 10}
+%%      {Dispatch CP deposit 10 1}     en vez de   {CP.deposit 10}
 %%
-%% Firma: receptor, selector (nombre del metodo), parametros.
-%% Los parametros van en una LISTA por la misma razon que las composiciones
-%% reciben una lista de objetos: en Oz la aridad es fija, no hay varargs.
+%% La Tarea 5 pide que el despacho funcione "exactamente como funcionaban las
+%% funciones en ExplicitComposition", es decir, que ante un choque se use la
+%% PRIMERA implementacion. Eso es lo que hace {Dispatch Obj Sel Params 1}. La
+%% Tarea 6 agrega el argumento del indice, asi que este unico Dispatch cubre
+%% las dos tareas: el indice 1 es el comportamiento de la Tarea 5.
 %%
-%% Semantica pedida por el enunciado: "debe funcionar exactamente como
-%% funcionaban las funciones en ExplicitComposition", es decir, ante un choque
-%% gana el PRIMERO. Como {AllImplementations} construyo la lista en orden de
-%% aparicion, eso es simplemente tomar el elemento 1.
+%% Como se pasan los parametros (Params). En Oz la aridad es fija y no hay
+%% varargs, asi que la forma depende de cuantos parametros tiene el metodo:
+%%   - sin parametros            : {Dispatch A display nil 1}
+%%   - un parametro              : {Dispatch A deposit 10 1}   (tal cual, sin lista)
+%%   - varios parametros         : {Dispatch A sum [2 3 R] 1}  (en una lista)
+%%   - una funcion (devuelve algo): el resultado va en el ultimo argumento del
+%%     metodo, o se recibe con $:  {Dispatch A balance $ 1}
+%% Recordar que en Oz una 'fun' es azucar de un 'proc' con un argumento de
+%% salida extra, por eso el resultado se trata como un parametro mas.
 %%
-%% El unico punto delicado es aplicar la implementacion, porque en Oz una 'fun'
-%% es azucar de un 'proc' con un argumento de salida extra. Un metodo como
-%% Balance (fun sin parametros) y un metodo como Deposit (proc con un
-%% parametro) tienen los dos aridad 1, y solo se distinguen comparando esa
-%% aridad con la cantidad de argumentos que recibimos. De eso se encarga
-%% CallWithResult, que ademas devuelve 'unit' cuando la implementacion era un
-%% procedimiento (no produce resultado).
+%% Si Params no tiene la forma que espera el metodo, se lanza
+%% metaError(badParams Aridad Params).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 declare
 
-%% {CallWithResult P Args} aplica P a los argumentos de la lista Args.
-%%   - Si {Procedure.arity P} == {Length Args}, P es un procedimiento: se
-%%     ejecuta y se devuelve unit.
-%%   - Si {Procedure.arity P} == {Length Args}+1, P es una funcion: el argumento
-%%     sobrante es el de salida y se devuelve lo que P produce.
-%% Igual que en MakeForwarder, los casos de aridad se enumeran porque no se
-%% pueden construir aplicaciones de aridad arbitraria en tiempo de ejecucion.
-fun {CallWithResult P Args}
-   Arity = {Procedure.arity P}
-   NArgs = {Length Args}
-in
-   if Arity == NArgs then
-      case Args
-      of nil          then {P}         unit
-      [] [A]          then {P A}       unit
-      [] [A B]        then {P A B}     unit
-      [] [A B C]      then {P A B C}   unit
-      [] [A B C D]    then {P A B C D} unit
-      else raise metaError(dispatchTooManyArgs NArgs) end
-      end
-   elseif Arity == NArgs+1 then
-      case Args
-      of nil          then {P $}
-      [] [A]          then {P A $}
-      [] [A B]        then {P A B $}
-      [] [A B C]      then {P A B C $}
-      [] [A B C D]    then {P A B C D $}
-      else raise metaError(dispatchTooManyArgs NArgs) end
-      end
-   else
-      raise metaError(dispatchArityMismatch Arity NArgs) end
+%% {CallMethod P Params} aplica el procedimiento P a los parametros Params. Se
+%% decide por la aridad de P porque no se pueden construir aplicaciones de
+%% aridad arbitraria en tiempo de ejecucion (mismo motivo que MakeForwarder).
+proc {CallMethod P Params}
+   case {Procedure.arity P}#Params
+   of 0#_ then {P}
+   [] 1#_ then {P Params}
+   [] 2#[A B] then {P A B}
+   [] 3#[A B C] then {P A B C}
+   [] 4#[A B C D] then {P A B C D}
+   [] 5#[A B C D E] then {P A B C D E}
+   [] N#_ then raise metaError(badParams N Params) end
    end
 end
 
-%% {Dispatch Obj Selector Args} ejecuta la primera implementacion del metodo.
-%% Se define con el nombre DispatchT5 y se expone como Dispatch: la Tarea 6
-%% vuelve a ligar el nombre Dispatch, y asi la version de esta tarea sigue
-%% disponible (y probable) hasta el final del archivo.
-fun {DispatchT5 Obj Selector Args}
-   {CallWithResult {List.nth Obj.Selector 1} Args}
-end
-
-declare Dispatch = DispatchT5
-
-%% Demostracion de la Tarea 5. Se construyen objetos propios porque los del
-%% bloque final de PRUEBAS se declaran mas abajo, y para entonces Dispatch ya
-%% habra sido redefinido por la Tarea 6.
-local E5 A5 D5 in
-   E5 = {NewEmployer "Uniandes" "Cra 1 # 18A-12"}
-   A5 = {NewAccount 100}
-   D5 = {ExplicitCompositionPoly [E5 {NewPerson "Ana" E5} A5]}
-
-   {System.showInfo ""}
-   {System.showInfo "== Tarea 5: Dispatch =="}
-   %% Metodo con parametro (proc): no devuelve nada, modifica la celda.
-   {System.show {Dispatch D5 deposit [50]}}         % unit
-   %% Metodo sin parametros que devuelve valor (fun).
-   {System.showInfo "balance -> "#{Dispatch D5 balance nil}}   % 150
-   {System.show {Dispatch D5 balance nil} == {A5.balance}}     % true
-   %% Metodo con choque: display esta en Employer y en Person, gana Employer.
-   {Dispatch D5 display nil _}
+%% {Implementations Method} devuelve la lista de implementaciones de un campo.
+%% Si el campo ya es una lista (objeto de la Tarea 4) la deja igual; si es un
+%% procedimiento suelto (objeto de las Tareas 1, 2 o 3) lo envuelve en una lista
+%% de un elemento. Asi Dispatch funciona con cualquier objeto del sistema.
+fun {Implementations Method}
+   if {IsList Method} then Method else [Method] end
 end
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% TAREA 6. DESPACHO CON INDICE Y NextFunction
+%% TAREA 6. INDICE EN Dispatch Y NextFunction
 %%
-%% Ahora si le sacamos provecho a guardar todas las implementaciones. Dispatch
-%% se REDEFINE con un cuarto argumento, el indice de la implementacion a llamar
-%% (el 'declare' vuelve a ligar el nombre, asi que de aqui en adelante Dispatch
-%% es esta version de 4 argumentos):
+%% {Dispatch Obj Selector Params Index} llama a la implementacion numero Index
+%% (empezando en 1) del metodo Selector:
 %%
-%%      {Dispatch A deposit [10] 1}   llama la primera implementacion
-%%      {Dispatch A deposit [10] 2}   llama la segunda
+%%      {Dispatch A deposit 10 1}   llama la primera implementacion
+%%      {Dispatch A deposit 10 2}   llama la segunda
 %%
-%% Con indice 1 el comportamiento es identico al de la Tarea 5. Un indice mayor
-%% al numero de implementaciones no hace nada, como pide el enunciado.
+%% Un indice mayor al numero de implementaciones no hace nada, como pide el
+%% enunciado.
 %%
 %% {NextFunction} se llama DESDE DENTRO de un metodo y continua con la siguiente
-%% implementacion. Para que el metodo sepa cual es "la siguiente" sin recibir el
-%% indice como parametro, Dispatch deja la continuacion en la celda NextThunk
-%% antes de invocar la implementacion actual, y restaura el valor anterior al
-%% terminar. Ese guardar/restaurar es lo que permite que los despachos anidados
-%% (un metodo que despacha otro metodo) no se pisen entre si.
+%% implementacion de la lista. Para que el metodo sepa cual es "la siguiente"
+%% sin recibir el indice como parametro, Dispatch deja la continuacion (un
+%% procedimiento sin argumentos que hace {Dispatch ... Index+1}) en la celda
+%% NextThunk justo antes de invocar la implementacion actual, y NextFunction
+%% simplemente la ejecuta.
+%%
+%% Detalles importantes:
+%%   - Los parametros no se vuelven a pasar en {NextFunction}: la continuacion
+%%     ya los tiene guardados, asi que la siguiente implementacion recibe los
+%%     mismos parametros que la actual.
+%%   - Despachos anidados: Dispatch guarda el valor anterior de NextThunk y lo
+%%     restaura al terminar, para que un metodo que despacha a otro objeto no
+%%     pise la continuacion del despacho exterior.
+%%   - El 'try ... finally' restaura NextThunk incluso si el metodo lanza una
+%%     excepcion, de modo que no quede una continuacion vieja en la celda.
+%%   - {NextFunction} fuera de un Dispatch, o en la ultima implementacion, no
+%%     hace nada.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 declare
 
-%% Continuacion vigente: el thunk que ejecutara {NextFunction}.
-NextThunk = {NewCell fun {$} unit end}
+%% Continuacion vigente: lo que ejecutara {NextFunction}. Al inicio no hace nada.
+NextThunk = {NewCell proc {$} skip end}
 
-fun {Dispatch Obj Selector Args Index}
-   Impls = Obj.Selector
+proc {Dispatch Obj Selector Params Index}
+   Impls = {Implementations Obj.Selector}
 in
-   if Index > {Length Impls} then unit
-   else
-      Curr = {List.nth Impls Index}
+   if Index =< {Length Impls} then
       OldNext
-      R
    in
-      {Exchange NextThunk OldNext fun {$} {Dispatch Obj Selector Args Index+1} end}
-      R = {CallWithResult Curr Args}
-      {Exchange NextThunk _ OldNext}
-      R
+      {Exchange NextThunk OldNext proc {$} {Dispatch Obj Selector Params Index+1} end}
+      try
+         {CallMethod {Nth Impls Index} Params}
+      finally
+         NextThunk := OldNext
+      end
    end
 end
 
-fun {NextFunction} {@NextThunk} end
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% PRUEBAS / EJEMPLOS
-%% Ejecutar este bloque muestra el comportamiento de las tareas 1, 2 y 3.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-declare
-E    = {NewEmployer "Uniandes" "Cra 1 # 18A-12"}
-P    = {NewPerson "Ana" E}
-CE   = {ExplicitComposition [E P]}   % Tarea 2
-CI   = {ImplicitComposition [E P]}   % Tarea 3
-CIde = {ExplicitComposition [E E]}   % idempotencia
-A    = {NewAccount 100}
-AE   = {ExplicitComposition [A P]}   % con metodos que reciben parametros
-AI   = {ImplicitComposition [A P]}
-
-proc {Titulo T} {System.showInfo ""} {System.showInfo "== "#T#" =="} end
-
-{Titulo "Tarea 1: objetos basicos"}
-{E.display}
-{P.display}
-{System.showInfo "PersonEmployer -> "#{P.personEmployer}}
-
-{Titulo "Tarea 2: composicion explicita"}
-%% El compuesto responde a los metodos de los dos constituyentes.
-{System.showInfo "name           -> "#{CE.name}}
-{System.showInfo "address        -> "#{CE.address}}
-{System.showInfo "personName     -> "#{CE.personName}}
-{System.showInfo "personEmployer -> "#{CE.personEmployer}}
-%% display esta en ambos objetos: gana el del primero (Employer).
-{CE.display}
-%% El estado se comparte, no se copia (esto es el Snippet 1 del enunciado).
-{System.showInfo "Comparte estado con E:"}
-{System.show {E.name} == {CE.name}}                      % true
-{System.show E.attributes.name == CE.attributes.name}     % true (misma celda)
-%% El atributo name aparece en los dos objetos: queda la celda de Employer.
-{Assign CE.attributes.name "Uniandes S.A."}
-{System.showInfo "Tras modificar la celda desde el compuesto, E.name -> "#{E.name}}
-{Assign CE.attributes.name "Uniandes"}   % se deja como estaba
-
-{Titulo "Tarea 2: idempotencia"}
-{System.show {Arity CIde} == {Arity E}}   % true: no se replico informacion
-{System.show {CIde.name} == {E.name}}     % true
-
-{Titulo "Tarea 3: composicion implicita"}
-{System.showInfo "name           -> "#{CI.name}}
-{System.showInfo "personName     -> "#{CI.personName}}
-{System.showInfo "personEmployer -> "#{CI.personEmployer}}
-{CI.display}                              % tambien gana el display de Employer
-{System.show {E.name} == {CI.name}}       % true
-%% A diferencia de la explicita, el objeto conserva a sus constituyentes y
-%% resuelve cada llamada en el momento de invocarla.
-{System.showInfo "Numero de constituyentes:"}
-{System.show {Length CI.constituents}}    % 2
-
-{Titulo "Metodos con parametros a traves de la composicion"}
-{AE.deposit 50}                           % explicita: 100 + 50
-{AI.deposit 25}                           % implicita: 150 + 25
-{System.showInfo "Saldo final -> "#{A.balance}}   % 175
-{System.show {A.balance} == {AI.balance}} % true: una sola celda de estado
-
-{Titulo "Composicion de composiciones"}
-%% Un objeto compuesto es un objeto normal, se puede volver a componer.
-%% Aqui usamos el alias Compose, que es el nombre del Snippet 1 del enunciado.
-{System.showInfo "personName    -> "#{{Compose [CI A]}.personName}}
-
-declare
-fun {NewLoud Msg}
-   proc {Announce}
-      {System.showInfo "LOUD: "#Msg}
-      {NextFunction _}
-   end
-in
-   object(attributes: attributes announce: Announce)
+proc {NextFunction}
+   {@NextThunk}
 end
-
-fun {NewQuiet Msg}
-   proc {Announce}
-      {System.showInfo "quiet: "#Msg}
-   end
-in
-   object(attributes: attributes announce: Announce)
-end
-
-CP = {ExplicitCompositionPoly [E P]}
-L  = {NewLoud "hola"}
-Q  = {NewQuiet "hola"}
-CN = {ExplicitCompositionPoly [L Q]}
-
-{Titulo "Tarea 4: composicion explicita polimorfica"}
-%% display choca: Employer y Person lo definen, y quedan las dos versiones.
-{System.showInfo "Implementaciones de display en CP:"}
-{System.show {Length CP.display}}                  % 2
-%% name no choca, pero igual queda como lista (forma uniforme).
-{System.show {Length CP.name}}                     % 1
-%% Se puede invocar cualquiera de las implementaciones conservadas.
-{{List.nth CP.display 1}}                          % el display de Employer
-{{List.nth CP.display 2}}                          % el display de Person
-%% El estado se sigue compartiendo con los constituyentes.
-{System.show {{List.nth CP.name 1}} == {E.name}}   % true
-%% Idempotencia: componer el mismo objeto dos veces no replica implementaciones.
-{System.show {Length {ExplicitCompositionPoly [E E]}.display}}   % 1
-
-{Titulo "Tarea 5: Dispatch sin indice"}
-%% La firma de la Tarea 5 es (receptor, selector, parametros) y siempre ejecuta
-%% la primera implementacion, igual que ExplicitComposition.
-{DispatchT5 CP display nil _}                       % el display de Employer
-{System.showInfo "name -> "#{DispatchT5 CP name nil}}
-{System.show {DispatchT5 CP name nil} == {E.name}}  % true
-%% Metodo con parametros: deposit es un proc, el despacho devuelve unit.
-{System.show {DispatchT5 {ExplicitCompositionPoly [A P]} deposit [10]}}
-{System.showInfo "balance tras el deposito -> "#{A.balance}}
-
-{Titulo "Tarea 6: Dispatch con indice"}
-{Dispatch CP display nil 1 _}         % ejecuta el display de Employer
-{Dispatch CP display nil 2 _}         % ejecuta el display de Person
-{Dispatch CP display nil 3 _}         % indice fuera de rango: no hace nada
-
-{Titulo "Tarea 6: NextFunction"}
-{Dispatch CN announce nil 1 _}        % Loud imprime su mensaje y llama a NextFunction,
-                                      % que dispara Quiet (indice 2)
