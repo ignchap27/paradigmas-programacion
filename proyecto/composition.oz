@@ -2,7 +2,7 @@
 %% ISIS-4217 Paradigmas de programacion
 %% Ignacio Chaparro - 202220577
 %% Daniel Diab - 202212289
-%% Proyecto: Orientacion a objetos - objetos componibles con "metafunciones"
+%% Proyecto: OOP - objetos componibles con "metafunciones"
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
