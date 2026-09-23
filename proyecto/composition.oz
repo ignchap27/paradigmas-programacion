@@ -1,52 +1,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% ISIS-4217 Paradigmas de programacion
+%% Ignacio Chaparro - 202220577
+%% Daniel Diab - 202212289
 %% Proyecto: Orientacion a objetos - objetos componibles con "metafunciones"
-%% Archivo: composition.oz
-%% Tareas 1, 2, 3, 4, 5 y 6
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%
-%% COMO REPRESENTAMOS UN OBJETO
-%%
-%% Aca no inventamos un lenguaje de objetos nuevo. Un objeto es simplemente un
-%% record de funciones con nombre, como la modularidad empaquetada del libro,
-%% pero con dos cosas que pide el enunciado:
-%%
-%%   1. Los atributos se declaran explicitamente dentro de la funcion que crea
-%%      el objeto, como celdas (NewCell), y su valor inicial llega por
-%%      parametro.
-%%   2. Los atributos tambien son parte visible del objeto: cada objeto arma un
-%%      record con etiqueta 'attributes' donde los campos son los nombres de los
-%%      atributos y los valores son las celdas.
-%%
-%% Osea que un objeto se ve asi:
-%%
-%%   object(attributes: attributes(nombreAtributo1: <Celda> ...)
-%%          metodo1: <Funcion o Procedimiento>
-%%          metodo2: <Funcion o Procedimiento>
-%%          ...)
-%%
-%% Y para llamar un metodo se saca el campo del record y se aplica:
-%%      {O.name}          % sin parametros
-%%      {O.deposit 10}    % con parametros
-%%
-%% El estado queda solo en las celdas, y los metodos son clausuras que capturan
-%% esas celdas. Eso importa para la composicion: al copiar un metodo de un
-%% objeto a otro sigue apuntando a la misma celda, entonces el estado nunca se
-%% duplica.
-%%
-%% SOBRE LO DE "cualquier numero de objetos"
-%%
-%% En Oz la aridad de un procedimiento es fija, no hay varargs. Por eso las
-%% metafunciones de composicion reciben una lista de objetos:
-%% {ExplicitComposition [O1 O2 O3]}. Es lo mismo que el {Compose O1 O2 O3} del
-%% enunciado y sirve para N objetos.
-%%
-%% COMO SE CORRE
-%%
-%% Alimentando tests.oz en el OPI de Mozart (Oz > Feed Buffer). Ese archivo
-%% incluye a este con \insert y corre las demos y las pruebas de las seis
-%% tareas. Este archivo solo define funciones.
-%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
