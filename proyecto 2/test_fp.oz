@@ -1,6 +1,6 @@
 \insert 'mozart-fp.oz'
 
-declare TestResult TestTask1 TestTask2 TestTutorial RedexInfo ReduceN TestTask3
+declare TestResult TestTask1 TestTask2 TestTutorial RedexInfo ReduceN TestTask3 TestTask4
 
 proc {TestResult TestName Expected Actual}
    if Expected == Actual then
@@ -109,7 +109,22 @@ in
    {TestResult reduce_none_same true {Reduce P7} == P7}
 end
 
+proc {TestTask4}
+   Funs = {GraphGeneration "fun twice x = x + x\ntwice 5"}.funs
+in
+   {TestResult eval_square 81 {Evaluate {GenerateGraph "fun square x = x * x\nsquare square 3"}}}
+   {TestResult eval_fourtimes 8 {Evaluate {GenerateGraph "fun fourtimes x = var y = x*x in y+y\nfourtimes 2"}}}
+   {TestResult eval_twice 10 {Evaluate {GenerateGraph "fun twice x = x + x\ntwice 5"}}}
+   {TestResult eval_sqr 15 {Evaluate {GenerateGraph "fun sqr x = (x+1) * (x-1)\nsqr 4"}}}
+   {TestResult eval_sum_n 20 {Evaluate {GenerateGraph "fun sum_n x y z n = (x + y + z) * n\nsum_n 1 sum_n 1 1 1 2 3 2"}}}
+   {TestResult eval_arithmetic 2 {Evaluate {GenerateGraph "fun arithmetic x y = ((x + y) / (x - y)) * 2\narithmetic arithmetic 5 6 arithmetic 2 11"}}}
+   {TestResult eval_var_use 241 {Evaluate {GenerateGraph "fun var_use x = var y = x+x in var z = y * 2 in z - 3\nvar_use var_use 16"}}}
+   {TestResult eval_caf 5 {Evaluate {GenerateGraph "fun five = 5\nfive"}}}
+   {TestResult eval_free_vars '@'('@'('+' x) x) {Evaluate program(funs: Funs graph: {MakeOp "+" {Leaf x} {Leaf x}})}}
+end
+
 {TestTask1}
 {TestTask2}
 {TestTutorial}
 {TestTask3}
+{TestTask4}

@@ -17,14 +17,14 @@ Mini lenguaje funcional en Mozart con *template instantiation* (reducción de gr
 - Programa = `program(funs: funs(nombre: def(params:[...] body:Nodo)) graph: Nodo)`.
 - Redex = `redex(name: N args: [Nodos] root: Nodo)` o `none`.
 
-## Estado (39/39 tests pasan)
+## Estado (48/48 tests pasan)
 - **Task 1 — GraphGeneration: HECHA.** Tokenize, parser con precedencia (`ParseExpr/Term/Factor`), `var y = ... in` con entorno que comparte el mismo nodo, aplicaciones según aridad (`ParseApplication/ParseArgs`). Alias `GenerateGraph`.
 - **Task 2 — NextReduction: HECHA.** `Unwind` baja por la espina izquierda; `Redex` sube `Arity` nodos. Primitivas con args no numéricos buscan redex dentro de los args (`FirstRedex`). Soporta CAF, sobre-aplicación e `ind`.
 - **Task 3 — Reduce: HECHA.** `Value` sigue `ind` hasta el número; `Apply` aplica la primitiva (`/` → `div`) y la raíz pasa a `leaf(Res)`. Supercombinador: `Instantiate` copia el body (params → nodos argumento vía `Lookup`, memo `Viejo#Nuevo` conserva sharing de `var`) y la raíz pasa a `ind(Nuevo)`. Raíz se muta con `{Assign R.root ...}` (`R.root := X` en Oz es asignación de diccionario, falla). Tests en `TestTask3`.
-- **Task 4 — Evaluate: FALTA.**
+- **Task 4 — Evaluate: HECHA.** Si `NextReduction` da `none` devuelve `{GraphToRecord Program.graph}` (número o expresión con variables libres); si no, `{Evaluate {Reduce Program}}`. Tests en `TestTask4`.
 
 ## Pendiente
-Agregar a `declare`: `Evaluate`.
+Nada. Proyecto completo.
 
 ### Task 4 — `fun {Evaluate Program}`
 Si `{NextReduction Program} == none` → `{GraphToRecord Program.graph}` (número, o expresión `'@'(...)` si hay variables libres). Si no → `{Evaluate {Reduce Program}}`.

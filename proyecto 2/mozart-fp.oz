@@ -1,7 +1,7 @@
 declare Leaf App MakeOp Tokenize Lookup TokenToNode
 ParseFactor ParseTerm ParseTermRest ParseExpr ParseExprRest ParseBody ParseDefinition
 ParseApplication ParseArgs GraphGeneration GenerateGraph GraphToRecord
-IsPrimitive IsNumberNode RightChild Unwind Redex PrimitiveRedex FirstRedex FindRedex NextReduction Value Apply Instantiate Reduce
+IsPrimitive IsNumberNode RightChild Unwind Redex PrimitiveRedex FirstRedex FindRedex NextReduction Value Apply Instantiate Reduce Evaluate
 
 fun {Leaf V}
    {NewCell leaf(V)}
@@ -275,4 +275,12 @@ in
                                       {NewCell nil}})}
    end
    Program
+end
+
+fun {Evaluate Program}
+   if {NextReduction Program} == none then
+      {GraphToRecord Program.graph}
+   else
+      {Evaluate {Reduce Program}}
+   end
 end
