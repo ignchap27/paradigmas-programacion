@@ -17,28 +17,19 @@ Mini lenguaje funcional en Mozart con *template instantiation* (reducción de gr
 - Programa = `program(funs: funs(nombre: def(params:[...] body:Nodo)) graph: Nodo)`.
 - Redex = `redex(name: N args: [Nodos] root: Nodo)` o `none`.
 
-## Estado (29/29 tests pasan)
+## Estado (39/39 tests pasan)
 - **Task 1 — GraphGeneration: HECHA.** Tokenize, parser con precedencia (`ParseExpr/Term/Factor`), `var y = ... in` con entorno que comparte el mismo nodo, aplicaciones según aridad (`ParseApplication/ParseArgs`). Alias `GenerateGraph`.
 - **Task 2 — NextReduction: HECHA.** `Unwind` baja por la espina izquierda; `Redex` sube `Arity` nodos. Primitivas con args no numéricos buscan redex dentro de los args (`FirstRedex`). Soporta CAF, sobre-aplicación e `ind`.
-- **Task 3 — Reduce: FALTA.**
+- **Task 3 — Reduce: HECHA.** `Value` sigue `ind` hasta el número; `Apply` aplica la primitiva (`/` → `div`) y la raíz pasa a `leaf(Res)`. Supercombinador: `Instantiate` copia el body (params → nodos argumento vía `Lookup`, memo `Viejo#Nuevo` conserva sharing de `var`) y la raíz pasa a `ind(Nuevo)`. Raíz se muta con `{Assign R.root ...}` (`R.root := X` en Oz es asignación de diccionario, falla). Tests en `TestTask3`.
 - **Task 4 — Evaluate: FALTA.**
 
 ## Pendiente
-Agregar a `declare`: `Value Apply Instantiate Reduce Evaluate`.
-
-### Task 3 — `fun {Reduce Program}` (muta el grafo, retorna Program)
-1. `R = {NextReduction Program}`; si `none`, retorna Program igual.
-2. Primitiva: `Value` (sigue `ind` hasta `leaf(N)`) de los 2 args, aplica op (`/` → `div`), `R.root := leaf(Res)`.
-3. Supercombinador: `Instantiate` copia el body:
-   - `leaf(param)` → nodo argumento (compartido).
-   - otro `leaf(V)` → `{Leaf V}` nuevo (nunca mutar el body original).
-   - `app(L R)` → `{App ...}` nuevo, con memo `Viejo#Nuevo` (identidad de celda) para conservar sharing de `var`.
-   - `R.root := ind(Nuevo)`.
+Agregar a `declare`: `Evaluate`.
 
 ### Task 4 — `fun {Evaluate Program}`
 Si `{NextReduction Program} == none` → `{GraphToRecord Program.graph}` (número, o expresión `'@'(...)` si hay variables libres). Si no → `{Evaluate {Reduce Program}}`.
 
-### Tests a agregar (`TestTask3`, `TestTask4`)
+### Tests a agregar (`TestTask4`)
 | Programa | Resultado |
 |---|---|
 | `square square 3` | 81 |

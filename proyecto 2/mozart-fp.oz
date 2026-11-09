@@ -1,7 +1,7 @@
 declare Leaf App MakeOp Tokenize Lookup TokenToNode
 ParseFactor ParseTerm ParseTermRest ParseExpr ParseExprRest ParseBody ParseDefinition
 ParseApplication ParseArgs GraphGeneration GenerateGraph GraphToRecord
-IsPrimitive IsNumberNode RightChild Unwind Redex PrimitiveRedex FirstRedex FindRedex NextReduction
+IsPrimitive IsNumberNode RightChild Unwind Redex PrimitiveRedex FirstRedex FindRedex NextReduction Value Apply Instantiate Reduce
 
 fun {Leaf V}
    {NewCell leaf(V)}
@@ -231,4 +231,48 @@ end
 
 fun {NextReduction Program}
    {FindRedex Program.graph Program.funs}
+end
+
+fun {Value Node}
+   case @Node of leaf(V) then V
+   [] ind(N) then {Value N}
+   end
+end
+
+fun {Apply Op A B}
+   case Op of '+' then A + B
+   [] '-' then A - B
+   [] '*' then A * B
+   [] '/' then A div B
+   end
+end
+
+fun {Instantiate Node Env Memo}
+   case @Node of leaf(V) then
+      {Lookup V Env}
+   [] app(L R) then
+      case {Filter @Memo fun {$ P} P.1 == Node end} of (_#Copy)|_ then
+         Copy
+      else
+         New = {App {Instantiate L Env Memo} {Instantiate R Env Memo}} in
+         Memo := (Node#New)|@Memo
+         New
+      end
+   end
+end
+
+fun {Reduce Program}
+   R = {NextReduction Program}
+in
+   if R == none then
+      skip
+   elseif {IsPrimitive R.name} then
+      {Assign R.root leaf({Apply R.name {Value R.args.1} {Value R.args.2.1}})}
+   else
+      Def = Program.funs.(R.name) in
+      {Assign R.root ind({Instantiate Def.body
+                                      {List.zip Def.params R.args fun {$ P A} P#A end}
+                                      {NewCell nil}})}
+   end
+   Program
 end

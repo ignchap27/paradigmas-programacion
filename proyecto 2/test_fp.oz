@@ -1,6 +1,6 @@
 \insert 'mozart-fp.oz'
 
-declare TestResult TestTask1 TestTask2 TestTutorial RedexInfo
+declare TestResult TestTask1 TestTask2 TestTutorial RedexInfo ReduceN TestTask3
 
 proc {TestResult TestName Expected Actual}
    if Expected == Actual then
@@ -80,6 +80,36 @@ in
    {TestResult tutorial_indirection redex(square [3] '@'(square 3)) {RedexInfo {NextReduction program(funs: Funs graph: {MakeOp "+" {NewCell ind({App {Leaf square} {Leaf 3}})} {Leaf 1}})}}}
 end
 
+fun {ReduceN Program N}
+   if N == 0 then Program else {ReduceN {Reduce Program} N-1} end
+end
+
+proc {TestTask3}
+   Funs = {GraphGeneration "fun twice x = x + x\ntwice 5"}.funs
+   P1 = {GraphGeneration "fun twice x = x + x\ntwice 5"}
+   P2 = program(funs: Funs graph: {MakeOp "+" {Leaf 2} {Leaf 3}})
+   P3 = {GraphGeneration "fun square x = x * x\nsquare square 3"}
+   P4 = {GraphGeneration "fun fourtimes x = var y = x*x in y+y\nfourtimes 2"}
+   P5 = {GraphGeneration "fun sqr x = (x+1) * (x-1)\nsqr 4"}
+   P6 = {GraphGeneration "fun arithmetic x y = ((x + y) / (x - y)) * 2\narithmetic 2 11"}
+   P7 = program(funs: Funs graph: {MakeOp "+" {Leaf x} {Leaf x}})
+   Inst4
+in
+   {TestResult reduce_twice '@'('@'('+' 5) 5) {GraphToRecord {Reduce P1}.graph}}
+   {TestResult reduce_twice_body '@'('@'('+' x) x) {GraphToRecord P1.funs.twice.body}}
+   {TestResult reduce_plus 5 {GraphToRecord {Reduce P2}.graph}}
+   {TestResult reduce_square 81 {GraphToRecord {ReduceN P3 4}.graph}}
+   _ = {Reduce P4}
+   Inst4 = case @(P4.graph) of ind(N) then @N end
+   {TestResult reduce_fourtimes_shared true case Inst4 of app(L R) then {RightChild L} == R end}
+   {TestResult reduce_fourtimes 8 {GraphToRecord {ReduceN P4 3}.graph}}
+   {TestResult reduce_sqr 15 {GraphToRecord {ReduceN P5 4}.graph}}
+   {TestResult reduce_arithmetic ~2 {GraphToRecord {ReduceN P6 5}.graph}}
+   {TestResult reduce_none '@'('@'('+' x) x) {GraphToRecord {Reduce P7}.graph}}
+   {TestResult reduce_none_same true {Reduce P7} == P7}
+end
+
 {TestTask1}
 {TestTask2}
 {TestTutorial}
+{TestTask3}
