@@ -18,11 +18,16 @@ Mini lenguaje funcional en Mozart con *template instantiation* (reducción de gr
 - **Programa** = `program(funs: funs(nombre: def(params:[...] body: AST)) heap: Heap calls: [Dir ...] graph: Dir)`. `calls` son las raíces de todas las líneas de llamada; `graph` es la raíz que se está reduciendo.
 - **Redex** = `redex(name: N args: [Dir ...] root: Dir)` o `none`.
 
-## Estado (81/81 tests pasan)
-- **Task 1 — GraphGeneration: HECHA.** `Tokenize` ignora comentarios `%` y separa por espacios. Primero `Arities` (nombre → nº params), después un único parser recursivo (`ParseExpr/Term/Factor` + `ParseArgs`) que devuelve `AST#TokensRestantes`. `var y = e in b` → `let(y e b)` (también sin `=`). Menos unario: `-3` → `~3`, `-x` → `0 - x`. Literales float (`2.5`). Cada línea de llamada se convierte a grafo con `Instantiate` (un `FoldR` va pasando el heap).
+## Estado (98/98 tests pasan)
+- **Task 1 — GraphGeneration: HECHA.** `CleanLine` quita comentarios `%` y espacios de los bordes; `Tokenize` separa por espacios. `Header` valida y lee la cabecera `fun nombre params =`. Primero `Arities` (nombre → nº params), después un único parser recursivo (`ParseExpr/Term/Factor` + `ParseArgs`) que devuelve `AST#TokensRestantes`. `var y = e in b` → `let(y e b)` (también sin `=`). Menos unario: `-3` → `~3`, `-x` → `0 - x`. Literales float (`2.5`). Cada línea de llamada se convierte a grafo con `Instantiate` (un `FoldR` va pasando el heap).
 - **Task 2 — NextReduction: HECHA.** `Unwind` baja por la espina con pila acumulador; `Redex` sube `ArgCount` nodos. `FindRedex` usa **continuación de fallo** (`Otherwise`): si una primitiva tiene args no numéricos busca en el 1º arg y, si no hay nada, la continuación busca en el 2º.
 - **Task 3 — Reduce: HECHA.** Primitiva: raíz → `leaf(Res)`. `/` da entero si es exacta (`10/2 = 5`) y float si no (`5/2 = 2.5`); int con float → float. Supercombinador: `Instantiate` construye el cuerpo en el heap (params → direcciones de los args, `let` → misma dirección = sharing) y la raíz → `ind(Cuerpo)`. Devuelve un programa nuevo.
 - **Task 4 — Evaluate: HECHA.** `Trace` es una lista **perezosa** (`fun lazy`) de estados; `Result` toma el último. `Evaluate` evalúa **todas** las líneas de llamada: una → el valor; varias → lista de valores; ninguna → `nil`. `Steps` muestra cada paso de reducción.
+
+## Errores de sintaxis
+- El parser lanza `raise syntax end` cuando: falta `)`, sobra `)` o cualquier token al final (`ParseAll` exige leer la línea completa), falta un argumento (`f 1` si `f` tiene 2 params), hay un operador sin operando (`5 +`, `5 * * 2`), aparece una palabra clave fuera de lugar (`in 5`), o un `fun` no tiene nombre, `=`, cuerpo, o tiene params que no son identificadores.
+- `Checked` atrapa `syntax` y lo relanza como `syntaxError(Linea)`; `GraphGeneration` lo atrapa y devuelve `error(syntax: 'linea')`. `Evaluate` devuelve ese mismo error sin evaluar.
+- Pasar funciones como argumento (`fun app f x = f x`) no está en el enunciado: se reporta como error de sintaxis.
 
 ## Técnicas de clase usadas
 - Recursión de cola con acumuladores: `Unwind` (pila), `ParseArgs`, `ParseTermRest`, `ParseExprRest`, `Lookup`.

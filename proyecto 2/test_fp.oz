@@ -1,7 +1,7 @@
 \insert 'mozart-fp.oz'
 
 declare TestResult TestFloat Build RedexInfo ReduceN SharedBody
-TestTask1 TestTask2 TestTask3 TestTask4 TestParser TestFunctional TestImprovements
+TestTask1 TestTask2 TestTask3 TestTask4 TestParser TestFunctional TestImprovements TestErrors
 
 proc {TestResult TestName Expected Actual}
    if Expected == Actual then
@@ -69,7 +69,7 @@ proc {TestTask2}
    P1 = {GraphGeneration "fun square x = x * x\nsquare square 3"}
    P2 = {GraphGeneration "fun twice x = x + x\ntwice 5"}
    P3 = {GraphGeneration "fun sum_n x y z n = (x + y + z) * n\nsum_n 1 sum_n 1 1 1 2 3 2"}
-   P4 = {GraphGeneration "fun f a b = a\nf 1 2 3"}
+   P4 = {Build {GraphGeneration "fun f a b = a"}.funs '@'('@'('@'(f 1) 2) 3)}
    P5 = {GraphGeneration "fun five = 5\nfive"}
    Funs = P1.funs
    Sq3 = '@'(square 3)
@@ -184,6 +184,26 @@ in
    {TestResult continuation_left_none redex(square [3] '@'(square 3)) {RedexInfo {Build P1.funs {MakeOp '*' {MakeOp '+' a b} '@'(square 3)}}}}
 end
 
+proc {TestErrors}
+   {TestResult err_unbalanced error(syntax: '(2 + 3') {Evaluate {GenerateGraph "(2 + 3"}}}
+   {TestResult err_extra_close error(syntax: '2 + 3)') {Evaluate {GenerateGraph "2 + 3)"}}}
+   {TestResult err_missing_arg error(syntax: 'f 1') {Evaluate {GenerateGraph "fun f x y = x + y\nf 1"}}}
+   {TestResult err_leftover error(syntax: 'twice 5 6') {Evaluate {GenerateGraph "fun twice x = x + x\ntwice 5 6"}}}
+   {TestResult err_dangling_op error(syntax: '5 +') {Evaluate {GenerateGraph "5 +"}}}
+   {TestResult err_double_op error(syntax: '5 * * 2') {Evaluate {GenerateGraph "5 * * 2"}}}
+   {TestResult err_empty_parens error(syntax: '()') {Evaluate {GenerateGraph "()"}}}
+   {TestResult err_fun_no_equal error(syntax: 'fun twice x x + x') {Evaluate {GenerateGraph "fun twice x x + x\ntwice 5"}}}
+   {TestResult err_fun_no_name error(syntax: 'fun = 5') {Evaluate {GenerateGraph "fun = 5\n1"}}}
+   {TestResult err_fun_empty_body error(syntax: 'fun f x =') {Evaluate {GenerateGraph "fun f x =\nf 1"}}}
+   {TestResult err_fun_bad_param error(syntax: 'fun f 3 = 3') {Evaluate {GenerateGraph "fun f 3 = 3\nf 1"}}}
+   {TestResult err_body error(syntax: 'fun f x = x +') {Evaluate {GenerateGraph "fun f x = x +\nf 1"}}}
+   {TestResult err_var_no_body error(syntax: 'fun f x = var y = x in') {Evaluate {GenerateGraph "fun f x = var y = x in\nf 1"}}}
+   {TestResult err_keyword error(syntax: 'in 5') {Evaluate {GenerateGraph "in 5"}}}
+   {TestResult err_comment_trimmed error(syntax: 'twice 5 6') {Evaluate {GenerateGraph "fun twice x = x + x\n  twice 5 6   % sobra el 6"}}}
+   {TestResult err_generate_value error(syntax: '(2 + 3') {GenerateGraph "(2 + 3"}}
+   {TestResult ok_after_fix 5 {Evaluate {GenerateGraph "(2 + 3)"}}}
+end
+
 {TestTask1}
 {TestTask2}
 {TestTask3}
@@ -191,3 +211,4 @@ end
 {TestParser}
 {TestImprovements}
 {TestFunctional}
+{TestErrors}

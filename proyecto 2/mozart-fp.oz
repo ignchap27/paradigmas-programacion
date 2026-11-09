@@ -1,6 +1,7 @@
-declare MakeOp Tokenize Lookup
-ParseFactor ParseArgs ParseTerm ParseTermRest ParseExpr ParseExprRest ParseBody ParseDefinition
-CountParams Alloc Instantiate GraphGeneration GenerateGraph NodeToRecord GraphToRecord
+declare MakeOp Trim CleanLine Tokenize IsIdentifier Lookup
+ParseFactor ParseArgs ParseTerm ParseTermRest ParseExpr ParseExprRest ParseAll ParseBody
+Header ParseDefinition Checked Alloc Instantiate BuildProgram GraphGeneration GenerateGraph
+NodeToRecord GraphToRecord
 IsPrimitive Value IsNumberNode Unwind ArgCount Redex FindRedex NextReduction
 ToFloat IsExact Calculate Apply Reduce Trace Steps Result Evaluate
 
@@ -8,9 +9,16 @@ fun {MakeOp Op L R}
    '@'('@'(Op L) R)
 end
 
+fun {Trim S}
+   {Reverse {List.dropWhile {Reverse {List.dropWhile S Char.isSpace}} Char.isSpace}}
+end
+
+fun {CleanLine Line}
+   {Trim {List.takeWhile Line fun {$ C} C \= &% end}}
+end
+
 fun {Tokenize Line}
-   Code = {List.takeWhile Line fun {$ C} C \= &% end}
-   Spaced = {FoldR Code
+   Spaced = {FoldR Line
              fun {$ C Acc}
                 if {Char.isSpace C} then & |Acc
                 elseif {Member C "+-*/()="} then & |C|& |Acc
@@ -20,6 +28,10 @@ fun {Tokenize Line}
              nil}
 in
    {Filter {String.tokens Spaced & } fun {$ T} T \= nil end}
+end
+
+fun {IsIdentifier T}
+   {Char.isAlpha T.1} andthen {Not {Member T ["fun" "var" "in"]}}
 end
 
 fun {Lookup Name Env}
@@ -33,8 +45,8 @@ end
 fun {ParseFactor Tokens Bound Arities}
    case Tokens of "("|Rest then
       E Rest2 in
-      E#(")"|Rest2) = {ParseExpr Rest Bound Arities}
-      E#Rest2
+      E#Rest2 = {ParseExpr Rest Bound Arities}
+      case Rest2 of ")"|Rest3 then E#Rest3 else raise syntax end end
    [] "-"|Rest then
       E Rest2 in
       E#Rest2 = {ParseFactor Rest Bound Arities}
@@ -44,6 +56,8 @@ fun {ParseFactor Tokens Bound Arities}
          {String.toInt T}#Rest
       elseif {String.isFloat T} then
          {String.toFloat T}#Rest
+      elseif {Not {IsIdentifier T}} then
+         raise syntax end
       else
          Name = {String.toAtom T} in
          if {Member Name Bound} then
@@ -54,6 +68,8 @@ fun {ParseFactor Tokens Bound Arities}
             Name#Rest
          end
       end
+   else
+      raise syntax end
    end
 end
 
@@ -107,8 +123,14 @@ fun {ParseExprRest Left Tokens Bound Arities}
    end
 end
 
+fun {ParseAll Tokens Bound Arities}
+   E Rest in
+   E#Rest = {ParseExpr Tokens Bound Arities}
+   if Rest == nil then E else raise syntax end end
+end
+
 fun {ParseBody Tokens Bound Arities}
-   case Tokens of "var"|NameS|Rest then
+   case Tokens of "var"|NameS|Rest andthen {IsIdentifier NameS} then
       Name = {String.toAtom NameS}
       ExprTokens = case Rest of "="|R then R else Rest end
       E Rest2 BodyTokens in
@@ -116,20 +138,32 @@ fun {ParseBody Tokens Bound Arities}
       BodyTokens = case Rest2 of "in"|R then R else Rest2 end
       let(Name E {ParseBody BodyTokens Name|Bound Arities})
    else
-      {ParseExpr Tokens Bound Arities}.1
+      {ParseAll Tokens Bound Arities}
+   end
+end
+
+fun {Header Tokens}
+   case Tokens of "fun"|NameS|Rest andthen {Member "=" Rest} then
+      ParamsS BodyTokens in
+      {List.takeDropWhile Rest fun {$ T} T \= "=" end ParamsS _|BodyTokens}
+      if {All NameS|ParamsS IsIdentifier} then
+         header(name: {String.toAtom NameS} params: {Map ParamsS String.toAtom} body: BodyTokens)
+      else
+         raise syntax end
+      end
+   else
+      raise syntax end
    end
 end
 
 fun {ParseDefinition Tokens Arities}
-   NameS Rest ParamsS BodyTokens Params in
-   "fun"|NameS|Rest = Tokens
-   {List.takeDropWhile Rest fun {$ T} T \= "=" end ParamsS _|BodyTokens}
-   Params = {Map ParamsS String.toAtom}
-   {String.toAtom NameS}#def(params: Params body: {ParseBody BodyTokens Params Arities})
+   H = {Header Tokens}
+in
+   H.name#def(params: H.params body: {ParseBody H.body H.params Arities})
 end
 
-fun {CountParams Tokens}
-   {Length {List.takeWhile Tokens.2.2 fun {$ T} T \= "=" end}}
+fun {Checked Line F}
+   try {F Line.2} catch syntax then raise syntaxError(Line.1) end end
 end
 
 fun {Alloc Node Heap}
@@ -154,13 +188,15 @@ fun {Instantiate E Env Heap}
    end
 end
 
-fun {GraphGeneration Program}
-   Lines = {Filter {Map {String.tokens Program &\n} Tokenize} fun {$ L} L \= nil end}
-   Defs = {Filter Lines fun {$ L} L.1 == "fun" end}
-   Calls = {Filter Lines fun {$ L} L.1 \= "fun" end}
-   Arities = {List.toRecord arities {Map Defs fun {$ L} {String.toAtom L.2.1}#{CountParams L} end}}
-   Funs = {List.toRecord funs {Map Defs fun {$ L} {ParseDefinition L Arities} end}}
-   Exprs = {Map Calls fun {$ L} {ParseExpr L nil Arities}.1 end}
+fun {BuildProgram Program}
+   Texts = {Filter {Map {String.tokens Program &\n} CleanLine} fun {$ L} L \= nil end}
+   Lines = {Map Texts fun {$ L} L#{Tokenize L} end}
+   Defs = {Filter Lines fun {$ L} L.2.1 == "fun" end}
+   Calls = {Filter Lines fun {$ L} L.2.1 \= "fun" end}
+   Headers = {Map Defs fun {$ L} {Checked L Header} end}
+   Arities = {List.toRecord arities {Map Headers fun {$ H} H.name#{Length H.params} end}}
+   Funs = {List.toRecord funs {Map Defs fun {$ L} {Checked L fun {$ Ts} {ParseDefinition Ts Arities} end} end}}
+   Exprs = {Map Calls fun {$ L} {Checked L fun {$ Ts} {ParseAll Ts nil Arities} end} end}
    Built = {FoldR Exprs
             fun {$ E Acc}
                Addr Heap in
@@ -170,6 +206,14 @@ fun {GraphGeneration Program}
             heap#nil}
 in
    program(funs: Funs heap: Built.1 calls: Built.2 graph: {CondSelect Built.2 1 none})
+end
+
+fun {GraphGeneration Program}
+   try
+      {BuildProgram Program}
+   catch syntaxError(Text) then
+      error(syntax: {String.toAtom Text})
+   end
 end
 
 GenerateGraph = GraphGeneration
@@ -304,7 +348,10 @@ fun {Result Program}
 end
 
 fun {Evaluate Program}
-   Results = {Map Program.calls fun {$ Addr} {Result {AdjoinAt Program graph Addr}} end}
-in
-   case Results of [R] then R else Results end
+   if {Label Program} == error then
+      Program
+   else
+      Results = {Map Program.calls fun {$ Addr} {Result {AdjoinAt Program graph Addr}} end} in
+      case Results of [R] then R else Results end
+   end
 end
