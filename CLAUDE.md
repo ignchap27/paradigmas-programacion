@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 When you finished a task, deactivate caveman mode and give the user a detailed explanation of your work so he can understand. When writing code, write the most simplest code possible, so a human could understand it. Dont write any comment on the code.
 
+Before working on `proyecto 2/`, read `proyecto 2/GUIA.md` (analysis, current status and remaining steps of the FP project).
+
 ## Toolchain
 
 Mozart 2 is installed as an app bundle, not on `PATH`:
@@ -26,6 +28,7 @@ Each assignment is a top-level directory containing the assignment PDF plus one 
 
 - `assignment1_IgnacioChaparro/` — declarative/functional Oz: `list.oz`, `poly.oz`, `tree.oz`, `integral.oz`, `recordR.oz`, plus `test_local.oz` and `test_completo.oz`.
 - `assignment_oop/` — object-oriented Oz (current work): `matrix.oz`, `mastermind.oz`, `exp.oz`, `language.oz`.
+- `proyecto 2/` — FP project (template instantiation): solution in `mozart-fp.oz`, tests in `test_fp.oz`, guide in `GUIA.md`.
 - `prueba.oz` — scratch file for language experiments; not part of any assignment.
 
 ## How the code is organized
