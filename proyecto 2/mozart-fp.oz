@@ -1,22 +1,16 @@
-declare Leaf App MakeOp Tokenize Lookup
+declare MakeOp Tokenize Lookup
 ParseFactor ParseArgs ParseTerm ParseTermRest ParseExpr ParseExprRest ParseBody ParseDefinition
-CountParams GraphGeneration GenerateGraph GraphToRecord
-IsPrimitive IsNumberNode RightChild Unwind Redex PrimitiveRedex FirstRedex FindRedex NextReduction Value Apply Instantiate Reduce Evaluate
-
-fun {Leaf V}
-   {NewCell leaf(V)}
-end
-
-fun {App L R}
-   {NewCell app(L R)}
-end
+CountParams Alloc Instantiate GraphGeneration GenerateGraph NodeToRecord GraphToRecord
+IsPrimitive Value IsNumberNode Unwind ArgCount Redex FindRedex NextReduction
+ToFloat IsExact Calculate Apply Reduce Trace Steps Result Evaluate
 
 fun {MakeOp Op L R}
-   {App {App {Leaf {String.toAtom Op}} L} R}
+   '@'('@'(Op L) R)
 end
 
 fun {Tokenize Line}
-   Spaced = {FoldR Line
+   Code = {List.takeWhile Line fun {$ C} C \= &% end}
+   Spaced = {FoldR Code
              fun {$ C Acc}
                 if {Char.isSpace C} then & |Acc
                 elseif {Member C "+-*/()="} then & |C|& |Acc
@@ -29,56 +23,62 @@ in
 end
 
 fun {Lookup Name Env}
-   case Env of N#Node|Rest then
-      if N == Name then Node else {Lookup Name Rest} end
+   case Env of N#Addr|Rest then
+      if N == Name then Addr else {Lookup Name Rest} end
    else
-      {Leaf Name}
+      none
    end
 end
 
-fun {ParseFactor Tokens Env Arity}
+fun {ParseFactor Tokens Bound Arities}
    case Tokens of "("|Rest then
-      Node Rest2 in
-      Node#(")"|Rest2) = {ParseExpr Rest Env Arity}
-      Node#Rest2
+      E Rest2 in
+      E#(")"|Rest2) = {ParseExpr Rest Bound Arities}
+      E#Rest2
+   [] "-"|Rest then
+      E Rest2 in
+      E#Rest2 = {ParseFactor Rest Bound Arities}
+      if {IsNumber E} then (~E)#Rest2 else {MakeOp '-' 0 E}#Rest2 end
    [] T|Rest then
       if {String.isInt T} then
-         {Leaf {String.toInt T}}#Rest
+         {String.toInt T}#Rest
+      elseif {String.isFloat T} then
+         {String.toFloat T}#Rest
       else
          Name = {String.toAtom T} in
-         if {Some Env fun {$ P} P.1 == Name end} then
-            {Lookup Name Env}#Rest
-         elseif {HasFeature Arity Name} then
-            {ParseArgs {Leaf Name} Arity.Name Rest Env Arity}
+         if {Member Name Bound} then
+            Name#Rest
+         elseif {HasFeature Arities Name} then
+            {ParseArgs Name Arities.Name Rest Bound Arities}
          else
-            {Leaf Name}#Rest
+            Name#Rest
          end
       end
    end
 end
 
-fun {ParseArgs Node N Tokens Env Arity}
+fun {ParseArgs E N Tokens Bound Arities}
    if N == 0 then
-      Node#Tokens
+      E#Tokens
    else
       Arg Rest in
-      Arg#Rest = {ParseFactor Tokens Env Arity}
-      {ParseArgs {App Node Arg} N-1 Rest Env Arity}
+      Arg#Rest = {ParseFactor Tokens Bound Arities}
+      {ParseArgs '@'(E Arg) N-1 Rest Bound Arities}
    end
 end
 
-fun {ParseTerm Tokens Env Arity}
+fun {ParseTerm Tokens Bound Arities}
    Left Rest in
-   Left#Rest = {ParseFactor Tokens Env Arity}
-   {ParseTermRest Left Rest Env Arity}
+   Left#Rest = {ParseFactor Tokens Bound Arities}
+   {ParseTermRest Left Rest Bound Arities}
 end
 
-fun {ParseTermRest Left Tokens Env Arity}
+fun {ParseTermRest Left Tokens Bound Arities}
    case Tokens of Op|Rest then
       if Op == "*" orelse Op == "/" then
          Right Rest2 in
-         Right#Rest2 = {ParseFactor Rest Env Arity}
-         {ParseTermRest {MakeOp Op Left Right} Rest2 Env Arity}
+         Right#Rest2 = {ParseFactor Rest Bound Arities}
+         {ParseTermRest {MakeOp {String.toAtom Op} Left Right} Rest2 Bound Arities}
       else
          Left#Tokens
       end
@@ -87,18 +87,18 @@ fun {ParseTermRest Left Tokens Env Arity}
    end
 end
 
-fun {ParseExpr Tokens Env Arity}
+fun {ParseExpr Tokens Bound Arities}
    Left Rest in
-   Left#Rest = {ParseTerm Tokens Env Arity}
-   {ParseExprRest Left Rest Env Arity}
+   Left#Rest = {ParseTerm Tokens Bound Arities}
+   {ParseExprRest Left Rest Bound Arities}
 end
 
-fun {ParseExprRest Left Tokens Env Arity}
+fun {ParseExprRest Left Tokens Bound Arities}
    case Tokens of Op|Rest then
       if Op == "+" orelse Op == "-" then
          Right Rest2 in
-         Right#Rest2 = {ParseTerm Rest Env Arity}
-         {ParseExprRest {MakeOp Op Left Right} Rest2 Env Arity}
+         Right#Rest2 = {ParseTerm Rest Bound Arities}
+         {ParseExprRest {MakeOp {String.toAtom Op} Left Right} Rest2 Bound Arities}
       else
          Left#Tokens
       end
@@ -107,172 +107,204 @@ fun {ParseExprRest Left Tokens Env Arity}
    end
 end
 
-fun {ParseBody Tokens Env Arity}
+fun {ParseBody Tokens Bound Arities}
    case Tokens of "var"|NameS|Rest then
-      ExprTokens Node Rest2 NewEnv in
+      Name = {String.toAtom NameS}
       ExprTokens = case Rest of "="|R then R else Rest end
-      Node#Rest2 = {ParseExpr ExprTokens Env Arity}
-      NewEnv = ({String.toAtom NameS}#Node)|Env
-      case Rest2 of "in"|Rest3 then
-         {ParseBody Rest3 NewEnv Arity}
-      else
-         {ParseBody Rest2 NewEnv Arity}
-      end
+      E Rest2 BodyTokens in
+      E#Rest2 = {ParseExpr ExprTokens Bound Arities}
+      BodyTokens = case Rest2 of "in"|R then R else Rest2 end
+      let(Name E {ParseBody BodyTokens Name|Bound Arities})
    else
-      {ParseExpr Tokens Env Arity}.1
+      {ParseExpr Tokens Bound Arities}.1
    end
 end
 
-fun {ParseDefinition Tokens Arity}
-   NameS Rest ParamsS BodyTokens in
+fun {ParseDefinition Tokens Arities}
+   NameS Rest ParamsS BodyTokens Params in
    "fun"|NameS|Rest = Tokens
    {List.takeDropWhile Rest fun {$ T} T \= "=" end ParamsS _|BodyTokens}
-   {String.toAtom NameS}#def(params: {Map ParamsS String.toAtom}
-                             body: {ParseBody BodyTokens nil Arity})
+   Params = {Map ParamsS String.toAtom}
+   {String.toAtom NameS}#def(params: Params body: {ParseBody BodyTokens Params Arities})
 end
 
 fun {CountParams Tokens}
    {Length {List.takeWhile Tokens.2.2 fun {$ T} T \= "=" end}}
 end
 
+fun {Alloc Node Heap}
+   Addr = {Width Heap} + 1
+in
+   Addr#{AdjoinAt Heap Addr Node}
+end
+
+fun {Instantiate E Env Heap}
+   case E of '@'(F A) then
+      FAddr AAddr H1 H2 in
+      FAddr#H1 = {Instantiate F Env Heap}
+      AAddr#H2 = {Instantiate A Env H1}
+      {Alloc app(FAddr AAddr) H2}
+   [] let(Name Def Body) then
+      DefAddr H1 in
+      DefAddr#H1 = {Instantiate Def Env Heap}
+      {Instantiate Body (Name#DefAddr)|Env H1}
+   else
+      Addr = {Lookup E Env} in
+      if Addr == none then {Alloc leaf(E) Heap} else Addr#Heap end
+   end
+end
+
 fun {GraphGeneration Program}
    Lines = {Filter {Map {String.tokens Program &\n} Tokenize} fun {$ L} L \= nil end}
    Defs = {Filter Lines fun {$ L} L.1 == "fun" end}
    Calls = {Filter Lines fun {$ L} L.1 \= "fun" end}
-   Arity = {List.toRecord arity {Map Defs fun {$ L} {String.toAtom L.2.1}#{CountParams L} end}}
-   Funs = {List.toRecord funs {Map Defs fun {$ L} {ParseDefinition L Arity} end}}
+   Arities = {List.toRecord arities {Map Defs fun {$ L} {String.toAtom L.2.1}#{CountParams L} end}}
+   Funs = {List.toRecord funs {Map Defs fun {$ L} {ParseDefinition L Arities} end}}
+   Exprs = {Map Calls fun {$ L} {ParseExpr L nil Arities}.1 end}
+   Built = {FoldR Exprs
+            fun {$ E Acc}
+               Addr Heap in
+               Addr#Heap = {Instantiate E nil Acc.1}
+               Heap#(Addr|Acc.2)
+            end
+            heap#nil}
 in
-   program(funs: Funs graph: {ParseExpr {List.last Calls} nil Arity}.1)
+   program(funs: Funs heap: Built.1 calls: Built.2 graph: {CondSelect Built.2 1 none})
 end
 
 GenerateGraph = GraphGeneration
 
-fun {GraphToRecord Node}
-   case @Node of leaf(V) then V
-   [] app(L R) then '@'({GraphToRecord L} {GraphToRecord R})
-   [] ind(N) then {GraphToRecord N}
+fun {NodeToRecord Addr Heap}
+   case Heap.Addr of leaf(V) then V
+   [] app(L R) then '@'({NodeToRecord L Heap} {NodeToRecord R Heap})
+   [] ind(A) then {NodeToRecord A Heap}
    end
+end
+
+fun {GraphToRecord Program}
+   {NodeToRecord Program.graph Program.heap}
 end
 
 fun {IsPrimitive V}
    {Member V ['+' '-' '*' '/']}
 end
 
-fun {IsNumberNode Node}
-   case @Node of leaf(V) then {IsNumber V}
-   [] ind(N) then {IsNumberNode N}
+fun {Value Addr Heap}
+   case Heap.Addr of leaf(V) then V
+   [] ind(A) then {Value A Heap}
+   end
+end
+
+fun {IsNumberNode Addr Heap}
+   case Heap.Addr of leaf(V) then {IsNumber V}
+   [] ind(A) then {IsNumberNode A Heap}
    else false
    end
 end
 
-fun {RightChild Node}
-   case @Node of app(_ R) then R end
-end
-
-fun {Unwind Node Stack}
-   case @Node of app(L _) then
-      {Unwind L Node|Stack}
-   [] ind(N) then
-      {Unwind N Stack}
-   else
-      Node|Stack
+fun {Unwind Addr Heap Stack}
+   case Heap.Addr of app(L _) then {Unwind L Heap Addr|Stack}
+   [] ind(A) then {Unwind A Heap Stack}
+   else Addr|Stack
    end
 end
 
-fun {Redex Name Stack Arity}
-   if {Length Stack} =< Arity then
+fun {ArgCount Name Funs}
+   if {IsPrimitive Name} then 2
+   elseif {IsAtom Name} andthen {HasFeature Funs Name} then {Length Funs.Name.params}
+   else none
+   end
+end
+
+fun {Redex Name Stack N Heap}
+   if N == none orelse {Length Stack} =< N then
       none
    else
       redex(name: Name
-            args: {Map {List.take Stack.2 Arity} RightChild}
-            root: {Nth Stack Arity+1})
+            args: {Map {List.take Stack.2 N} fun {$ A} Heap.A.2 end}
+            root: {Nth Stack N+1})
    end
 end
 
-fun {PrimitiveRedex Name Stack Funs}
-   R = {Redex Name Stack 2}
+fun {FindRedex Addr Program Otherwise}
+   Heap = Program.heap
+   Stack = {Unwind Addr Heap nil}
+   Name = {Value Stack.1 Heap}
+   R = {Redex Name Stack {ArgCount Name Program.funs} Heap}
 in
-   if R == none then none
-   elseif {All R.args IsNumberNode} then R
-   else {FirstRedex R.args Funs}
-   end
-end
-
-fun {FirstRedex Nodes Funs}
-   case Nodes of Node|Rest then
-      R = {FindRedex Node Funs} in
-      if R == none then {FirstRedex Rest Funs} else R end
+   if R == none then
+      {Otherwise}
+   elseif {IsPrimitive Name} andthen {Not {All R.args fun {$ A} {IsNumberNode A Heap} end}} then
+      {FindRedex R.args.1 Program fun {$} {FindRedex R.args.2.1 Program Otherwise} end}
    else
-      none
-   end
-end
-
-fun {FindRedex Node Funs}
-   Stack = {Unwind Node nil}
-   Head = Stack.1
-   Name = case @Head of leaf(V) then V end
-in
-   if {IsPrimitive Name} then
-      {PrimitiveRedex Name Stack Funs}
-   elseif {HasFeature Funs Name} then
-      {Redex Name Stack {Length Funs.Name.params}}
-   else
-      none
+      R
    end
 end
 
 fun {NextReduction Program}
-   {FindRedex Program.graph Program.funs}
+   {FindRedex Program.graph Program fun {$} none end}
 end
 
-fun {Value Node}
-   case @Node of leaf(V) then V
-   [] ind(N) then {Value N}
+fun {ToFloat X}
+   if {IsInt X} then {Int.toFloat X} else X end
+end
+
+fun {IsExact Op A B}
+   {IsInt A} andthen {IsInt B} andthen (Op \= '/' orelse (B \= 0 andthen A mod B == 0))
+end
+
+fun {Calculate Op A B}
+   case Op of '+' then A + B
+   [] '-' then A - B
+   [] '*' then A * B
+   [] '/' then if {IsInt A} then A div B else A / B end
    end
 end
 
 fun {Apply Op A B}
-   case Op of '+' then A + B
-   [] '-' then A - B
-   [] '*' then A * B
-   [] '/' then A div B
-   end
-end
-
-fun {Instantiate Node Env Memo}
-   case @Node of leaf(V) then
-      {Lookup V Env}
-   [] app(L R) then
-      case {Filter @Memo fun {$ P} P.1 == Node end} of (_#Copy)|_ then
-         Copy
-      else
-         New = {App {Instantiate L Env Memo} {Instantiate R Env Memo}} in
-         Memo := (Node#New)|@Memo
-         New
-      end
+   if {IsExact Op A B} then
+      {Calculate Op A B}
+   else
+      {Calculate Op {ToFloat A} {ToFloat B}}
    end
 end
 
 fun {Reduce Program}
    R = {NextReduction Program}
+   Heap = Program.heap
 in
    if R == none then
-      skip
+      Program
    elseif {IsPrimitive R.name} then
-      {Assign R.root leaf({Apply R.name {Value R.args.1} {Value R.args.2.1}})}
+      Res = {Apply R.name {Value R.args.1 Heap} {Value R.args.2.1 Heap}} in
+      {AdjoinAt Program heap {AdjoinAt Heap R.root leaf(Res)}}
    else
-      Def = Program.funs.(R.name) in
-      {Assign R.root ind({Instantiate Def.body
-                                      {List.zip Def.params R.args fun {$ P A} P#A end}
-                                      {NewCell nil}})}
+      Def = Program.funs.(R.name)
+      Env = {List.zip Def.params R.args fun {$ P A} P#A end}
+      Body NewHeap in
+      Body#NewHeap = {Instantiate Def.body Env Heap}
+      {AdjoinAt Program heap {AdjoinAt NewHeap R.root ind(Body)}}
    end
-   Program
+end
+
+fun lazy {Trace Program}
+   if {NextReduction Program} == none then
+      [Program]
+   else
+      Program|{Trace {Reduce Program}}
+   end
+end
+
+fun {Steps Program}
+   {Map {Trace Program} GraphToRecord}
+end
+
+fun {Result Program}
+   {GraphToRecord {List.last {Trace Program}}}
 end
 
 fun {Evaluate Program}
-   if {NextReduction Program} == none then
-      {GraphToRecord Program.graph}
-   else
-      {Evaluate {Reduce Program}}
-   end
+   Results = {Map Program.calls fun {$ Addr} {Result {AdjoinAt Program graph Addr}} end}
+in
+   case Results of [R] then R else Results end
 end
