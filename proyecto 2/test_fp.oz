@@ -1,6 +1,6 @@
 \insert 'mozart-fp.oz'
 
-declare TestResult TestTask1 TestTask2 TestTutorial RedexInfo ReduceN TestTask3 TestTask4
+declare TestResult TestTask1 TestTask2 TestTutorial RedexInfo ReduceN TestTask3 TestTask4 TestParser
 
 proc {TestResult TestName Expected Actual}
    if Expected == Actual then
@@ -123,8 +123,23 @@ in
    {TestResult eval_free_vars '@'('@'('+' x) x) {Evaluate program(funs: Funs graph: {MakeOp "+" {Leaf x} {Leaf x}})}}
 end
 
+proc {TestParser}
+   P1 = {GenerateGraph "fun twice x = x + x\nfun f x = twice x + 1\nf 3"}
+in
+   {TestResult parse_body_call_graph '@'('@'('+' '@'(twice x)) 1) {GraphToRecord P1.funs.f.body}}
+   {TestResult eval_body_call 7 {Evaluate P1}}
+   {TestResult eval_body_call_paren 12 {Evaluate {GenerateGraph "fun twice x = x + x\nfun g x = twice (x * 2)\ng 3"}}}
+   {TestResult eval_call_paren_op 10 {Evaluate {GenerateGraph "fun twice x = x + x\ntwice (2 + 3)"}}}
+   {TestResult eval_call_op 7 {Evaluate {GenerateGraph "fun twice x = x + x\ntwice 3 + 1"}}}
+   {TestResult eval_only_arith 5 {Evaluate {GenerateGraph "2 + 3"}}}
+   {TestResult eval_multi_def 36 {Evaluate {GenerateGraph "fun twice x = x + x\nfun square x = x * x\nsquare twice 3"}}}
+   {TestResult eval_crlf 10 {Evaluate {GenerateGraph "fun twice x = x + x\r\ntwice 5"}}}
+   {TestResult eval_tabs 10 {Evaluate {GenerateGraph "fun\ttwice x = x + x\ntwice\t5"}}}
+end
+
 {TestTask1}
 {TestTask2}
 {TestTutorial}
 {TestTask3}
 {TestTask4}
+{TestParser}

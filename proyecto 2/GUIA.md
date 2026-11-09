@@ -17,32 +17,20 @@ Mini lenguaje funcional en Mozart con *template instantiation* (reducción de gr
 - Programa = `program(funs: funs(nombre: def(params:[...] body:Nodo)) graph: Nodo)`.
 - Redex = `redex(name: N args: [Nodos] root: Nodo)` o `none`.
 
-## Estado (48/48 tests pasan)
-- **Task 1 — GraphGeneration: HECHA.** Tokenize, parser con precedencia (`ParseExpr/Term/Factor`), `var y = ... in` con entorno que comparte el mismo nodo, aplicaciones según aridad (`ParseApplication/ParseArgs`). Alias `GenerateGraph`.
+## Estado (57/57 tests pasan)
+- **Task 1 — GraphGeneration: HECHA.** `Tokenize` separa por cualquier espacio (tabs, `\r`). Primero se arma `Arity` (nombre → nº de params, `CountParams`) desde las líneas `fun`; después un **único parser** (`ParseExpr/Term/Factor` + `ParseArgs`) sirve para cuerpos y para la línea de llamada. `ParseFactor`: `( expr )` (exige `)`), número, nombre del entorno (`var`/param, comparte el mismo nodo), función conocida → consume `Arity` argumentos (cada uno un factor), si no → variable libre. Así funcionan llamadas dentro de cuerpos (`twice x + 1`), operadores en la llamada (`twice (2 + 3)`, `twice 3 + 1`) y `sum_n 1 sum_n 1 1 1 2 3 2`. `var y x+x` (sin `=`) también. Alias `GenerateGraph`.
 - **Task 2 — NextReduction: HECHA.** `Unwind` baja por la espina izquierda; `Redex` sube `Arity` nodos. Primitivas con args no numéricos buscan redex dentro de los args (`FirstRedex`). Soporta CAF, sobre-aplicación e `ind`.
-- **Task 3 — Reduce: HECHA.** `Value` sigue `ind` hasta el número; `Apply` aplica la primitiva (`/` → `div`) y la raíz pasa a `leaf(Res)`. Supercombinador: `Instantiate` copia el body (params → nodos argumento vía `Lookup`, memo `Viejo#Nuevo` conserva sharing de `var`) y la raíz pasa a `ind(Nuevo)`. Raíz se muta con `{Assign R.root ...}` (`R.root := X` en Oz es asignación de diccionario, falla). Tests en `TestTask3`.
-- **Task 4 — Evaluate: HECHA.** Si `NextReduction` da `none` devuelve `{GraphToRecord Program.graph}` (número o expresión con variables libres); si no, `{Evaluate {Reduce Program}}`. Tests en `TestTask4`.
+- **Task 3 — Reduce: HECHA.** `Value` sigue `ind` hasta el número; `Apply` aplica la primitiva (`/` → `div`) y la raíz pasa a `leaf(Res)`. Supercombinador: `Instantiate` copia el body (params → nodos argumento vía `Lookup`, memo `Viejo#Nuevo` conserva sharing de `var`) y la raíz pasa a `ind(Nuevo)`. Raíz se muta con `{Assign R.root ...}`.
+- **Task 4 — Evaluate: HECHA.** Si `NextReduction` da `none` devuelve `{GraphToRecord Program.graph}` (número o expresión `'@'(...)` con variables libres); si no, `{Evaluate {Reduce Program}}`.
+- Tests: `TestTask1..4`, `TestTutorial` y `TestParser` (regresiones del parser unificado).
+
+## Decisiones
+- `NextReduction/Reduce/Evaluate` reciben `program(funs graph)`, no sólo el grafo: sin las definiciones no se puede reducir.
+- División por cero: se deja la excepción de Oz (el enunciado no define nada).
+- Si hay varias líneas de llamada, se evalúa la última.
 
 ## Pendiente
-Nada. Proyecto completo.
-
-### Task 4 — `fun {Evaluate Program}`
-Si `{NextReduction Program} == none` → `{GraphToRecord Program.graph}` (número, o expresión `'@'(...)` si hay variables libres). Si no → `{Evaluate {Reduce Program}}`.
-
-### Tests a agregar (`TestTask4`)
-| Programa | Resultado |
-|---|---|
-| `square square 3` | 81 |
-| `fourtimes 2` | 8 |
-| `twice 5` | 10 |
-| `sqr 4` | 15 |
-| `sum_n 1 sum_n 1 1 1 2 3 2` | 20 |
-| `arithmetic arithmetic 5 6 arithmetic 2 11` | 2 (`div`) |
-| `var_use var_use 16` | 241 |
-| `five` (CAF) | 5 |
-| `x + x` sin valor | `'@'('@'('+' x) x)` |
-
-Reduce un paso: `twice 5` → raíz `+ 5 5`; `2+3` → `5`.
+Nada.
 
 ## Cómo correr los tests
 ```sh

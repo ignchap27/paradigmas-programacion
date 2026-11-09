@@ -1,6 +1,6 @@
-declare Leaf App MakeOp Tokenize Lookup TokenToNode
-ParseFactor ParseTerm ParseTermRest ParseExpr ParseExprRest ParseBody ParseDefinition
-ParseApplication ParseArgs GraphGeneration GenerateGraph GraphToRecord
+declare Leaf App MakeOp Tokenize Lookup
+ParseFactor ParseArgs ParseTerm ParseTermRest ParseExpr ParseExprRest ParseBody ParseDefinition
+CountParams GraphGeneration GenerateGraph GraphToRecord
 IsPrimitive IsNumberNode RightChild Unwind Redex PrimitiveRedex FirstRedex FindRedex NextReduction Value Apply Instantiate Reduce Evaluate
 
 fun {Leaf V}
@@ -18,7 +18,10 @@ end
 fun {Tokenize Line}
    Spaced = {FoldR Line
              fun {$ C Acc}
-                if {Member C "+-*/()="} then & |C|& |Acc else C|Acc end
+                if {Char.isSpace C} then & |Acc
+                elseif {Member C "+-*/()="} then & |C|& |Acc
+                else C|Acc
+                end
              end
              nil}
 in
@@ -33,100 +36,20 @@ fun {Lookup Name Env}
    end
 end
 
-fun {TokenToNode T Env}
-   if {String.isInt T} then
-      {Leaf {String.toInt T}}
-   else
-      {Lookup {String.toAtom T} Env}
-   end
-end
-
-fun {ParseFactor Tokens Env}
+fun {ParseFactor Tokens Env Arity}
    case Tokens of "("|Rest then
       Node Rest2 in
-      Node#(_|Rest2) = {ParseExpr Rest Env}
-      Node#Rest2
-   [] T|Rest then
-      {TokenToNode T Env}#Rest
-   end
-end
-
-fun {ParseTerm Tokens Env}
-   Left Rest in
-   Left#Rest = {ParseFactor Tokens Env}
-   {ParseTermRest Left Rest Env}
-end
-
-fun {ParseTermRest Left Tokens Env}
-   case Tokens of Op|Rest then
-      if Op == "*" orelse Op == "/" then
-         Right Rest2 in
-         Right#Rest2 = {ParseFactor Rest Env}
-         {ParseTermRest {MakeOp Op Left Right} Rest2 Env}
-      else
-         Left#Tokens
-      end
-   else
-      Left#Tokens
-   end
-end
-
-fun {ParseExpr Tokens Env}
-   Left Rest in
-   Left#Rest = {ParseTerm Tokens Env}
-   {ParseExprRest Left Rest Env}
-end
-
-fun {ParseExprRest Left Tokens Env}
-   case Tokens of Op|Rest then
-      if Op == "+" orelse Op == "-" then
-         Right Rest2 in
-         Right#Rest2 = {ParseTerm Rest Env}
-         {ParseExprRest {MakeOp Op Left Right} Rest2 Env}
-      else
-         Left#Tokens
-      end
-   else
-      Left#Tokens
-   end
-end
-
-fun {ParseBody Tokens Env}
-   case Tokens of "var"|NameS|Rest then
-      ExprTokens Node Rest2 NewEnv in
-      ExprTokens = case Rest of "="|R then R else Rest end
-      Node#Rest2 = {ParseExpr ExprTokens Env}
-      NewEnv = ({String.toAtom NameS}#Node)|Env
-      case Rest2 of "in"|Rest3 then
-         {ParseBody Rest3 NewEnv}
-      else
-         {ParseBody Rest2 NewEnv}
-      end
-   else
-      {ParseExpr Tokens Env}.1
-   end
-end
-
-fun {ParseDefinition Tokens}
-   NameS Rest ParamsS BodyTokens in
-   "fun"|NameS|Rest = Tokens
-   {List.takeDropWhile Rest fun {$ T} T \= "=" end ParamsS _|BodyTokens}
-   {String.toAtom NameS}#def(params: {Map ParamsS String.toAtom}
-                             body: {ParseBody BodyTokens nil})
-end
-
-fun {ParseApplication Tokens Funs}
-   case Tokens of "("|Rest then
-      Node Rest2 in
-      Node#(_|Rest2) = {ParseApplication Rest Funs}
+      Node#(")"|Rest2) = {ParseExpr Rest Env Arity}
       Node#Rest2
    [] T|Rest then
       if {String.isInt T} then
          {Leaf {String.toInt T}}#Rest
       else
          Name = {String.toAtom T} in
-         if {HasFeature Funs Name} then
-            {ParseArgs {Leaf Name} {Length Funs.Name.params} Rest Funs}
+         if {Some Env fun {$ P} P.1 == Name end} then
+            {Lookup Name Env}#Rest
+         elseif {HasFeature Arity Name} then
+            {ParseArgs {Leaf Name} Arity.Name Rest Env Arity}
          else
             {Leaf Name}#Rest
          end
@@ -134,23 +57,92 @@ fun {ParseApplication Tokens Funs}
    end
 end
 
-fun {ParseArgs Node N Tokens Funs}
+fun {ParseArgs Node N Tokens Env Arity}
    if N == 0 then
       Node#Tokens
    else
       Arg Rest in
-      Arg#Rest = {ParseApplication Tokens Funs}
-      {ParseArgs {App Node Arg} N-1 Rest Funs}
+      Arg#Rest = {ParseFactor Tokens Env Arity}
+      {ParseArgs {App Node Arg} N-1 Rest Env Arity}
    end
+end
+
+fun {ParseTerm Tokens Env Arity}
+   Left Rest in
+   Left#Rest = {ParseFactor Tokens Env Arity}
+   {ParseTermRest Left Rest Env Arity}
+end
+
+fun {ParseTermRest Left Tokens Env Arity}
+   case Tokens of Op|Rest then
+      if Op == "*" orelse Op == "/" then
+         Right Rest2 in
+         Right#Rest2 = {ParseFactor Rest Env Arity}
+         {ParseTermRest {MakeOp Op Left Right} Rest2 Env Arity}
+      else
+         Left#Tokens
+      end
+   else
+      Left#Tokens
+   end
+end
+
+fun {ParseExpr Tokens Env Arity}
+   Left Rest in
+   Left#Rest = {ParseTerm Tokens Env Arity}
+   {ParseExprRest Left Rest Env Arity}
+end
+
+fun {ParseExprRest Left Tokens Env Arity}
+   case Tokens of Op|Rest then
+      if Op == "+" orelse Op == "-" then
+         Right Rest2 in
+         Right#Rest2 = {ParseTerm Rest Env Arity}
+         {ParseExprRest {MakeOp Op Left Right} Rest2 Env Arity}
+      else
+         Left#Tokens
+      end
+   else
+      Left#Tokens
+   end
+end
+
+fun {ParseBody Tokens Env Arity}
+   case Tokens of "var"|NameS|Rest then
+      ExprTokens Node Rest2 NewEnv in
+      ExprTokens = case Rest of "="|R then R else Rest end
+      Node#Rest2 = {ParseExpr ExprTokens Env Arity}
+      NewEnv = ({String.toAtom NameS}#Node)|Env
+      case Rest2 of "in"|Rest3 then
+         {ParseBody Rest3 NewEnv Arity}
+      else
+         {ParseBody Rest2 NewEnv Arity}
+      end
+   else
+      {ParseExpr Tokens Env Arity}.1
+   end
+end
+
+fun {ParseDefinition Tokens Arity}
+   NameS Rest ParamsS BodyTokens in
+   "fun"|NameS|Rest = Tokens
+   {List.takeDropWhile Rest fun {$ T} T \= "=" end ParamsS _|BodyTokens}
+   {String.toAtom NameS}#def(params: {Map ParamsS String.toAtom}
+                             body: {ParseBody BodyTokens nil Arity})
+end
+
+fun {CountParams Tokens}
+   {Length {List.takeWhile Tokens.2.2 fun {$ T} T \= "=" end}}
 end
 
 fun {GraphGeneration Program}
    Lines = {Filter {Map {String.tokens Program &\n} Tokenize} fun {$ L} L \= nil end}
    Defs = {Filter Lines fun {$ L} L.1 == "fun" end}
    Calls = {Filter Lines fun {$ L} L.1 \= "fun" end}
-   Funs = {List.toRecord funs {Map Defs ParseDefinition}}
+   Arity = {List.toRecord arity {Map Defs fun {$ L} {String.toAtom L.2.1}#{CountParams L} end}}
+   Funs = {List.toRecord funs {Map Defs fun {$ L} {ParseDefinition L Arity} end}}
 in
-   program(funs: Funs graph: {ParseApplication {List.last Calls} Funs}.1)
+   program(funs: Funs graph: {ParseExpr {List.last Calls} nil Arity}.1)
 end
 
 GenerateGraph = GraphGeneration
