@@ -1,5 +1,8 @@
 # Proyecto 2 FP
 
+Ignacio Chaparro - 202220557
+Daniel Diab - 202212289
+
 Toda la solución está en `mozart-fp.oz` y los tests en `test_fp.oz`. Un programa se evalúa con `{Evaluate {GenerateGraph P}}`. Seguimos el modelo de template instantiation del capítulo 2 de Peyton Jones, con un heap de direcciones, instanciación del cuerpo y nodos de indirección.
 
 ## Representación
