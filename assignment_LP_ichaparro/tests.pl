@@ -1,3 +1,5 @@
+% Ignacio Chaparro - 202220577
+
 :- consult([matrix, mastermind, interval, always]).
 
 parent(abe, homer).

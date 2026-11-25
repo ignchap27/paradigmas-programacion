@@ -1,3 +1,5 @@
+% Ignacio Chaparro - 202220577
+
 :- dynamic interval/3.
 
 new_interval(Id, L, R) :-

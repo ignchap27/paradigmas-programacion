@@ -1,3 +1,5 @@
+% Ignacio Chaparro - 202220577
+
 sometimes(Query) :-
     \+ \+ call(Query).
 

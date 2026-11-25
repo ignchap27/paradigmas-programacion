@@ -1,3 +1,5 @@
+% Ignacio Chaparro - 202220577
+
 :- dynamic guess/3.
 
 color(red).

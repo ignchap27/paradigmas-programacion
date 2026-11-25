@@ -1,3 +1,5 @@
+% Ignacio Chaparro - 202220577
+
 product_list([], 1).
 product_list([X|Xs], P) :-
     product_list(Xs, P1),
